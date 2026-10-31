@@ -119,12 +119,12 @@ function desenhar() {
   const corpo = $('#jCorpo');
 
   // evita redesenhar (e apagar o que o aluno está a escrever) quando nada de relevante mudou
-  const chave = JSON.stringify([s.estado, s.atual, s.minhaResposta, s.eliminado, s.vidas, s.certa, s.vencedores, s.posicao, s.perguntas && s.perguntas.length, s.modo === 'prova' ? null : s.emJogo]);
+  const chave = JSON.stringify([s.aberto, s.nome, s.estado, s.atual, s.minhaResposta, s.eliminado, s.vidas, s.certa, s.vencedores, s.posicao, s.perguntas && s.perguntas.length, s.modo === 'prova' ? null : s.emJogo]);
   if (chave === ultimaChave && !(s.estado === 'espera')) { tique(); return; }
   ultimaChave = chave;
 
   if (s.estado === 'espera') {
-    corpo.innerHTML = `<h2>Estás dentro.</h2><p>Espera que o professor comece.</p><p class="muted small">${s.inscritos} ${s.inscritos === 1 ? 'aluno na sala' : 'alunos na sala'}.</p>`;
+    corpo.innerHTML = `<h2>Estás dentro.</h2><p>Espera que o professor comece.${s.aberto ? '' : ' Vais responder quando ele te der a vez.'}</p><p class="muted small">${s.inscritos} ${s.inscritos === 1 ? 'aluno na sala' : 'alunos na sala'}.</p>`;
   } else if (s.estado === 'fim') {
     if (s.modo === 'elim') {
       const ganhei = s.vencedores.includes(s.nome);
@@ -145,7 +145,11 @@ function desenharEliminatoria(corpo) {
   const avisoElim = s.eliminado ? `<div class="msg warn small">Já saíste do jogo${s.podeResponder ? ', mas podes continuar a treinar' : ''}.</div>` : '';
 
   if (s.estado === 'pergunta') {
-    if (!s.podeResponder) {
+    if (!s.aberto && !s.minhaResposta && !s.eliminado) {
+      corpo.innerHTML = num + `<div class="msg warn"><b>Aguarda a tua vez.</b> O professor ainda não te deu a vez.</div><div class="aluno-q">${esc(s.pergunta.q)}</div><p class="muted small">Podes ir pensando na resposta.</p>`;
+      return;
+    }
+    if (!s.podeResponder && !s.minhaResposta) {
       corpo.innerHTML = num + avisoElim + `<div class="aluno-q">${esc(s.pergunta.q)}</div><p class="muted">Acompanha os colegas.</p>`;
       return;
     }
@@ -195,6 +199,10 @@ async function enviar(resposta) {
 }
 
 function desenharProva(corpo) {
+  if (s.estado === 'aberta' && !s.aberto) {
+    corpo.innerHTML = '<div class="result-big">Aguarda a tua vez</div><p>O professor vai abrir-te a prova. As respostas que já deste estão guardadas.</p>';
+    return;
+  }
   if (s.estado !== 'aberta' || !s.perguntas) { corpo.innerHTML = '<p class="muted">A aguardar…</p>'; return; }
   corpo.innerHTML = `<p class="muted small" style="margin:0">${s.perguntas.length} perguntas. As respostas ficam guardadas sozinhas e podes alterá-las até a prova fechar.</p>` +
     s.perguntas.map((p, i) => `<div class="prova-q"><p><b>${i + 1}.</b> ${esc(p.q)}<span class="saved hidden" id="ok${i}">guardado</span></p>` +

@@ -51,6 +51,20 @@ Podes preparar as perguntas no Excel com 4 colunas e colar na caixa de texto, ou
 - Opção "eliminados continuam a responder": treinam, mas não contam para o vencedor.
 - Se as perguntas acabarem com mais de um aluno em jogo, ganha quem acertou mais. Em empate, quem respondeu mais depressa.
 
+## Dar a vez (postos)
+
+Cada aluno, ou grupo, tem no painel um botão **Aberto/Fechado**:
+
+- **Aberto:** pode responder.
+- **Fechado:** vê "Aguarda a tua vez" e não consegue responder. Na eliminatória vê a pergunta; na prova não vê as perguntas, mas as respostas que já deu ficam guardadas.
+- **Só este:** dá a vez a esse aluno e fecha todos os outros. Por exemplo, "só o grupo 5 responde".
+- **Abrir todos / Fechar todos:** para toda a turma de uma vez.
+- **Nome:** clica no nome de um aluno para lhe chamar, por exemplo, "Grupo 5 – Entradas".
+
+Ao criar a sala, a opção "Os alunos entram fechados" faz com que ninguém responda até lhe dares a vez. Sem ela, todos entram abertos.
+
+Na eliminatória, quem não teve a vez numa ronda não perde vidas nessa ronda. A ronda fecha sozinha quando todos os que têm a vez responderam.
+
 ## Avaliação
 
 Quando a prova (ou o jogo) termina, aparece no painel o quadro **Avaliação**:

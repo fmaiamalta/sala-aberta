@@ -58,6 +58,8 @@
             <div class="choice"><label><input type="checkbox" id="continuar"> Continuam a responder, sem contar para o vencedor</label></div>
           </div>
         </div>
+        <label>Vez</label>
+        <div class="choice"><label><input type="checkbox" id="comVez"> Os alunos entram <b>fechados</b> e só respondem quando lhes deres a vez</label></div>
         <div id="optProva" class="hidden">
           <label for="duracao">Duração da prova (minutos)</label>
           <input id="duracao" type="number" min="1" max="180" value="15">
@@ -133,8 +135,11 @@
     <div class="card">
       <div class="row" style="margin-bottom:10px">
         <h2 class="grow" style="margin:0">Alunos</h2>
+        <button class="sec" type="button" id="vezAbrirTodos">Abrir todos</button>
+        <button class="sec" type="button" id="vezFecharTodos">Fechar todos</button>
         <a id="sCsv" href="#"><button class="sec" type="button">Descarregar resultados (CSV)</button></a>
       </div>
+      <p class="muted small" id="vezAjuda">Clica em <b>Aberto/Fechado</b> para dar ou tirar a vez. <b>Só este</b> fecha todos os outros. Clica no nome para lhe chamar, por exemplo, "Grupo 5 – Entradas".</p>
       <div class="students" id="sAlunos"></div>
       <p class="muted small hidden" id="sSemAlunos">Ainda ninguém entrou.</p>
     </div>
@@ -312,6 +317,7 @@ $('#fCriar').onsubmit = async (e) => {
       perguntas,
       vidas: $('#vidas').value,
       continuarEliminados: $('#continuar').checked,
+      comVez: $('#comVez').checked,
       duracaoMin: $('#duracao').value,
       perfil: todosPerfis()[Number($('#perfilCriar').value)],
     });
@@ -342,6 +348,8 @@ function abrirPainel(code) {
   fonte.onerror = () => { $('#sEstadoTxt').textContent = 'Ligação perdida. A tentar de novo…'; };
 }
 $('#voltar').onclick = irCriar;
+$('#vezAbrirTodos').onclick = () => acao('vezTodos', { aberto: true });
+$('#vezFecharTodos').onclick = () => acao('vezTodos', { aberto: false });
 
 async function acao(acao, extra = {}) {
   try { await api('POST', `/api/prof/sala/${estado.code}/acao`, { acao, ...extra }); }
@@ -398,7 +406,7 @@ function desenhar() {
     $('#sPerguntaNum').textContent = `Pergunta ${s.atual + 1} de ${s.total}`;
     $('#sPergunta').textContent = p.q;
     const resp = s.alunos.filter((a) => a.respostaAtual).length;
-    const podem = s.alunos.filter((a) => !a.eliminado || s.continuarEliminados).length;
+    const podem = s.alunos.filter((a) => a.aberto && (!a.eliminado || s.continuarEliminados)).length;
     $('#sResposta').innerHTML = `Resposta certa: <b>${esc(p.a.split('|').join(' ou '))}</b>` +
       (p.o ? ` <span class="muted">· opções: ${esc(p.o.join(', '))}</span>` : '') +
       (s.estado === 'pergunta' ? `<br><span class="muted">${resp} de ${podem} já responderam</span>` : '');
@@ -434,12 +442,16 @@ function desenhar() {
 
   // alunos
   const box = $('#sAlunos');
-  box.innerHTML = s.alunos.map((a) => {
+  const porEntrada = [...s.alunos].sort((x, y) => x.entrou - y.entrou); // os cartões não mudam de lugar
+  const comVezVisivel = s.estado !== 'fim';
+  box.innerHTML = porEntrada.map((a) => {
     let cls = 'st', info = '';
+    if (!a.aberto && comVezVisivel) cls += ' fechado';
     if (s.modo === 'elim') {
       if (a.eliminado) cls += ' out';
       if (s.estado === 'pergunta' && a.respostaAtual) { cls += ' answered'; info = 'respondeu'; }
-      else if (s.estado === 'pergunta') info = a.eliminado ? 'eliminado' : 'a pensar…';
+      else if (s.estado === 'pergunta') info = a.eliminado ? 'eliminado' : (a.aberto ? 'a pensar…' : 'à espera da vez');
+      else if (s.estado === 'resultado' && !a.respostaAtual && !a.teveVez) info = 'não teve a vez';
       else if (s.estado === 'resultado' && (!a.eliminado || a.respostaAtual || a.eliminadoRonda === s.historico.length)) {
         const ok = a.respostaAtual && a.respostaAtual.ok;
         cls += ok ? ' right' : ' wrong';
@@ -451,11 +463,27 @@ function desenhar() {
       info = s.estado === 'fim' ? `${a.certas}/${s.total} certas` : `${a.respondidas}/${s.total} respondidas`;
       if (s.estado === 'aberta' && a.respondidas === s.total) cls += ' answered';
     }
-    return `<div class="${cls}"><div class="n"><span class="dot ${a.online ? '' : 'off'}" title="${a.online ? 'ligado' : 'desligado'}"></span>${esc(a.nome)}</div>
-      <div class="small muted">${info}</div>
+    const vez = comVezVisivel ? `<div class="vez">
+        <button type="button" class="tg ${a.aberto ? 'on' : ''}" data-vez="${a.id}" data-aberto="${a.aberto ? 1 : 0}">${a.aberto ? 'Aberto' : 'Fechado'}</button>
+        <button type="button" class="sec so" data-so="${a.id}" title="Dar a vez só a este">Só este</button></div>` : '';
+    return `<div class="${cls}"><div class="n"><span class="dot ${a.online ? '' : 'off'}" title="${a.online ? 'ligado' : 'desligado'}"></span><span class="nome" data-ren="${a.id}" title="Clica para mudar o nome">${esc(a.nome)}</span></div>
+      <div class="small muted">${info || '&nbsp;'}</div>${vez}
       ${s.estado === 'espera' ? `<button class="x" title="Remover" data-id="${a.id}">×</button>` : ''}</div>`;
   }).join('');
   box.querySelectorAll('.x').forEach((b) => (b.onclick = () => confirm('Remover este aluno?') && acao('expulsar', { id: b.dataset.id })));
+  box.querySelectorAll('[data-vez]').forEach((b) => (b.onclick = () => acao('vez', { id: b.dataset.vez, aberto: b.dataset.aberto !== '1' })));
+  box.querySelectorAll('[data-so]').forEach((b) => (b.onclick = () => acao('soEste', { id: b.dataset.so })));
+  box.querySelectorAll('[data-ren]').forEach((el) => (el.onclick = () => {
+    const atual = s.alunos.find((a) => a.id === el.dataset.ren);
+    const nome = prompt('Novo nome (por exemplo: Grupo 5 – Entradas):', atual ? atual.nome : '');
+    if (nome && nome.trim()) acao('renomear', { id: el.dataset.ren, nome: nome.trim() });
+  }));
+  const abertos = s.alunos.filter((a) => a.aberto).length;
+  $('#vezAbrirTodos').classList.toggle('hidden', !comVezVisivel || !s.alunos.length);
+  $('#vezFecharTodos').classList.toggle('hidden', !comVezVisivel || !s.alunos.length);
+  $('#vezAjuda').classList.toggle('hidden', !comVezVisivel || !s.alunos.length);
+  $('#vezAbrirTodos').disabled = abertos === s.alunos.length;
+  $('#vezFecharTodos').disabled = abertos === 0;
   $('#sSemAlunos').classList.toggle('hidden', s.alunos.length > 0);
 
   // tabela

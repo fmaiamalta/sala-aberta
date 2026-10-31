@@ -72,7 +72,7 @@ function limparLimites(l) {
   return v.every((x, i) => i === 0 || x >= v[i - 1]) ? v : null;
 }
 
-function criarSala({ titulo, modo, perguntas, vidas, continuarEliminados, duracaoMin, perfil }) {
+function criarSala({ titulo, modo, perguntas, vidas, continuarEliminados, duracaoMin, perfil, comVez }) {
   const sala = {
     code: novoCodigo(),
     titulo: String(titulo || 'Sala').slice(0, 80),
@@ -85,6 +85,8 @@ function criarSala({ titulo, modo, perguntas, vidas, continuarEliminados, duraca
     })),
     vidas: Math.max(1, Math.min(10, Number(vidas) || 1)),
     continuarEliminados: !!continuarEliminados,
+    comVez: !!comVez, // true: os alunos entram fechados e só respondem quando o professor lhes dá a vez
+    vezRonda: new Set(), // quem teve a vez durante a ronda atual
     duracaoMs: Math.max(1, Number(duracaoMin) || 15) * 60000,
     estado: 'espera', // espera | pergunta | resultado | aberta | fim
     atual: -1,
@@ -118,6 +120,7 @@ function novoAluno(nome) {
     eliminado: false,
     eliminadoRonda: null,
     respostas: {}, // qi -> {r, ms, ok}
+    aberto: true, // tem a vez: pode responder
     clientes: new Set(),
     entrouEm: now(),
   };
@@ -158,14 +161,18 @@ function abrirPergunta(sala, qi) {
   sala.estado = 'pergunta';
   sala.abertaEm = now();
   sala.prazo = sala.abertaEm + sala.perguntas[qi].t * 1000;
+  sala.vezRonda = new Set([...sala.alunos.values()].filter((a) => a.aberto).map((a) => a.id));
   sala.temporizador = setTimeout(() => fecharPergunta(sala), sala.prazo - now() + 300);
 }
+// Quem pode responder agora: tem a vez e não foi eliminado (ou os eliminados continuam)
+const podeResponder = (sala, a) => a.aberto && (!a.eliminado || sala.continuarEliminados);
 
 function fecharPergunta(sala) {
   if (sala.estado !== 'pergunta') return;
   limparTemporizador(sala);
   const qi = sala.atual;
-  const emJogo = ativos(sala);
+  // só conta quem teve a vez nesta ronda (ou respondeu); quem esteve fechado não é penalizado
+  const emJogo = ativos(sala).filter((a) => sala.vezRonda.has(a.id) || a.respostas[qi]);
   const certos = emJogo.filter((a) => a.respostas[qi]?.ok);
   const errados = emJogo.filter((a) => !a.respostas[qi]?.ok);
   const ninguemSai = certos.length === 0 && emJogo.length > 0;
@@ -354,6 +361,7 @@ function vistaProf(sala) {
     prazo: sala.prazo,
     vidas: sala.vidas,
     continuarEliminados: sala.continuarEliminados,
+    comVez: sala.comVez,
     duracaoMin: sala.duracaoMs / 60000,
     perguntas: sala.perguntas,
     historico: sala.historico,
@@ -367,6 +375,9 @@ function vistaProf(sala) {
       eliminado: x.a.eliminado,
       eliminadoRonda: x.a.eliminadoRonda,
       online: x.a.clientes.size > 0,
+      aberto: x.a.aberto,
+      entrou: x.a.entrouEm,
+      teveVez: sala.vezRonda.has(x.a.id),
       certas: x.certas,
       ms: x.ms,
       respondidas: Object.keys(x.a.respostas).length,
@@ -388,8 +399,9 @@ function vistaAluno(sala, a) {
     nome: a.nome,
     vidas: a.vidas,
     vidasIniciais: sala.vidas,
+    aberto: a.aberto,
     eliminado: a.eliminado,
-    podeResponder: !a.eliminado || sala.continuarEliminados,
+    podeResponder: podeResponder(sala, a),
     emJogo: ativos(sala).length,
     inscritos: sala.alunos.size,
   };
@@ -407,7 +419,7 @@ function vistaAluno(sala, a) {
       }
     }
   } else {
-    if (sala.estado === 'aberta') {
+    if (sala.estado === 'aberta' && a.aberto) {
       base.perguntas = sala.perguntas.map((p) => ({ q: p.q, o: p.o }));
       base.minhas = Object.fromEntries(Object.entries(a.respostas).map(([k, v]) => [k, v.r]));
     }
@@ -573,6 +585,32 @@ const servidor = http.createServer(async (req, res) => {
           case 'terminar':
             if (sala.estado !== 'fim') terminar(sala);
             return json(res, 200, { ok: true });
+          case 'vez': { // abre ou fecha um aluno
+            const a = sala.alunos.get(b.id);
+            if (a) { a.aberto = !!b.aberto; if (a.aberto && sala.estado === 'pergunta') sala.vezRonda.add(a.id); }
+            break;
+          }
+          case 'vezTodos':
+            for (const a of sala.alunos.values()) {
+              a.aberto = !!b.aberto;
+              if (a.aberto && sala.estado === 'pergunta') sala.vezRonda.add(a.id);
+            }
+            break;
+          case 'soEste': { // dá a vez só a este aluno e fecha os outros
+            if (!sala.alunos.has(b.id)) break;
+            for (const a of sala.alunos.values()) a.aberto = a.id === b.id;
+            if (sala.estado === 'pergunta') sala.vezRonda.add(b.id);
+            break;
+          }
+          case 'renomear': {
+            const a = sala.alunos.get(b.id);
+            const nome = String(b.nome || '').trim().slice(0, 40);
+            if (!a || !nome) break;
+            if ([...sala.alunos.values()].some((x) => x !== a && normalizar(x.nome) === normalizar(nome)))
+              return json(res, 409, { erro: 'Já há alguém com esse nome.' });
+            a.nome = nome;
+            break;
+          }
           case 'expulsar': {
             const a = sala.alunos.get(b.id);
             if (a) { for (const r of a.clientes) enviar(r, { expulso: true }); sala.alunos.delete(b.id); }
@@ -615,6 +653,7 @@ const servidor = http.createServer(async (req, res) => {
           return json(res, 409, { erro: 'Já há alguém com esse nome. Junta a inicial do apelido.' });
         const a = novoAluno(nome);
         a.vidas = sala.vidas;
+        a.aberto = !sala.comVez;
         sala.alunos.set(a.id, a);
         difundir(sala);
         return json(res, 200, { id: a.id });
@@ -637,15 +676,17 @@ const servidor = http.createServer(async (req, res) => {
         if (sala.modo === 'elim') {
           if (sala.estado !== 'pergunta' || qi !== sala.atual) return json(res, 409, { erro: 'Tempo esgotado.' });
           if (al.eliminado && !sala.continuarEliminados) return json(res, 403, { erro: 'Estás eliminado.' });
+          if (!al.aberto) return json(res, 403, { erro: 'Aguarda a tua vez.' });
           if (al.respostas[qi]) return json(res, 409, { erro: 'Já respondeste.' });
           al.respostas[qi] = { r: resposta, ms: now() - sala.abertaEm, ok: correta(sala.perguntas[qi], resposta) };
           // fecha logo se todos os que podem responder já responderam
-          const podem = [...sala.alunos.values()].filter((x) => !x.eliminado || sala.continuarEliminados);
-          if (podem.every((x) => x.respostas[qi])) fecharPergunta(sala);
+          const podem = [...sala.alunos.values()].filter((x) => podeResponder(sala, x));
+          if (podem.length && podem.every((x) => x.respostas[qi])) fecharPergunta(sala);
           else difundir(sala);
           return json(res, 200, { ok: true });
         } else {
           if (sala.estado !== 'aberta') return json(res, 409, { erro: 'A prova está fechada.' });
+          if (!al.aberto) return json(res, 403, { erro: 'Aguarda a tua vez.' });
           if (!(qi >= 0 && qi < sala.perguntas.length)) return json(res, 400, { erro: 'Pergunta inválida.' });
           if (resposta.trim() === '') delete al.respostas[qi];
           else al.respostas[qi] = { r: resposta, ms: now() - sala.abertaEm, ok: correta(sala.perguntas[qi], resposta) };
