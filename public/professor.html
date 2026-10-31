@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salas de Jogo · Professor</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- LOGIN -->
+  <section id="vLogin" class="narrow card" style="margin:60px auto">
+    <h1>Salas de Jogo</h1>
+    <p class="muted">Escreve o PIN que aparece na janela do servidor.</p>
+    <form id="fLogin">
+      <input id="pin" type="password" autocomplete="current-password" placeholder="PIN ou palavra-passe">
+      <div id="loginErr" class="msg bad hidden"></div>
+      <p style="margin-top:12px"><button>Entrar</button></p>
+    </form>
+  </section>
+
+  <!-- CRIAR SALA -->
+  <section id="vCriar" class="hidden">
+    <div class="row" style="margin-bottom:14px">
+      <div class="grow"><h1>Nova sala</h1><p class="muted">Prepara as perguntas, escolhe o modo e abre a sala.</p></div>
+    </div>
+
+    <div id="salasExistentes" class="card hidden">
+      <h2>Salas abertas</h2>
+      <div id="listaSalas"></div>
+    </div>
+
+    <form id="fCriar">
+      <div class="card">
+        <label for="titulo">Nome da sala</label>
+        <input id="titulo" type="text" placeholder="Ex.: 7.ºB Matemática, potências" required>
+
+        <label>Modo</label>
+        <div class="choice">
+          <label><input type="radio" name="modo" value="elim" checked> <b>Eliminatória</b><br><span class="muted small">Uma pergunta de cada vez, com tempo. Quem erra sai.</span></label>
+          <label><input type="radio" name="modo" value="prova"> <b>Prova cronometrada</b><br><span class="muted small">Todas as perguntas ao mesmo tempo. Fecha quando o tempo acabar.</span></label>
+        </div>
+
+        <div id="optElim" class="grid2">
+          <div>
+            <label for="vidas">Vidas por aluno</label>
+            <select id="vidas">
+              <option value="1">1 (erra uma vez, sai)</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+          <div>
+            <label>Eliminados</label>
+            <div class="choice"><label><input type="checkbox" id="continuar"> Continuam a responder, sem contar para o vencedor</label></div>
+          </div>
+        </div>
+        <div id="optProva" class="hidden">
+          <label for="duracao">Duração da prova (minutos)</label>
+          <input id="duracao" type="number" min="1" max="180" value="15">
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Perguntas</h2>
+        <p class="muted small">Uma pergunta por linha: <b>pergunta ; resposta ; segundos ; opções</b>. Os segundos e as opções são opcionais (por defeito, 60 s). Opções separadas por <b>|</b>. Várias respostas certas também com <b>|</b>, por exemplo <b>0,5|1/2</b>. Podes colar diretamente do Excel ou do Google Sheets.</p>
+        <div class="row" style="margin-bottom:10px">
+          <select id="exemplo" style="width:auto"><option value="">Carregar um exemplo…</option></select>
+          <label class="sec" style="margin:0"><input id="ficheiro" type="file" accept=".csv,.txt,.tsv" style="width:auto"></label>
+        </div>
+        <textarea id="perguntas" placeholder="Quanto é 7 × 8?;56;30&#10;Capital de França?;Paris;20;Madrid|Paris|Roma|Berlim"></textarea>
+        <p id="resumo" class="muted small" style="margin-top:8px"></p>
+        <div id="previa"></div>
+      </div>
+
+      <div id="criarErr" class="msg bad hidden"></div>
+      <button class="big">Abrir sala</button>
+    </form>
+  </section>
+
+  <!-- PAINEL DA SALA -->
+  <section id="vSala" class="hidden">
+    <div class="row" style="margin-bottom:12px">
+      <button class="sec" id="voltar">← Salas</button>
+      <h1 class="grow" id="sTitulo"></h1>
+      <span class="pill" id="sModo"></span>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="row" style="align-items:flex-start">
+          <div class="grow">
+            <p class="muted small" style="margin:0">Código da sala</p>
+            <div class="code-big" id="sCode"></div>
+            <p class="small" style="margin-top:10px">Os alunos abrem:<br><b id="sEndereco"></b></p>
+          </div>
+          <div class="qr" id="sQR"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <div class="grow">
+            <p class="muted small" style="margin:0" id="sEstadoTxt"></p>
+            <div class="timer" id="sTimer">–</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:2rem;font-weight:800" id="sContagem">0</div>
+            <div class="muted small" id="sContagemTxt">alunos</div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px" id="sBotoes"></div>
+      </div>
+    </div>
+
+    <div class="card" id="sPerguntaCard">
+      <p class="muted small" style="margin:0" id="sPerguntaNum"></p>
+      <div class="question-big" id="sPergunta"></div>
+      <div id="sResposta" class="small"></div>
+      <div id="sRonda"></div>
+    </div>
+
+    <div class="card hidden" id="sFimCard">
+      <p class="muted small" style="margin:0">Resultado final</p>
+      <div class="winner" id="sVencedor"></div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <h2 class="grow" style="margin:0">Alunos</h2>
+        <a id="sCsv" href="#"><button class="sec" type="button">Descarregar resultados (CSV)</button></a>
+      </div>
+      <div class="students" id="sAlunos"></div>
+      <p class="muted small hidden" id="sSemAlunos">Ainda ninguém entrou.</p>
+    </div>
+
+    <div class="card hidden" id="sTabelaCard">
+      <h2>Classificação</h2>
+      <div style="overflow-x:auto"><table id="sTabela"></table></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let PIN = sessionStorage.getItem('pin') || '';
+let info = null, fonte = null, estado = null, offset = 0;
+
+async function api(metodo, url, corpo) {
+  const r = await fetch(url, {
+    method: metodo,
+    headers: { 'Content-Type': 'application/json', 'x-pin': PIN },
+    body: corpo ? JSON.stringify(corpo) : undefined,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status);
+  return j;
+}
+function mostrar(v) { for (const id of ['vLogin', 'vCriar', 'vSala']) $('#' + id).classList.toggle('hidden', id !== v); }
+
+// ---------- login ----------
+$('#fLogin').onsubmit = async (e) => {
+  e.preventDefault();
+  PIN = $('#pin').value.trim();
+  try { await entrar(); } catch (err) { $('#loginErr').textContent = err.message; $('#loginErr').classList.remove('hidden'); }
+};
+async function entrar() {
+  info = await api('GET', '/api/prof/info');
+  sessionStorage.setItem('pin', PIN);
+  const sel = $('#exemplo');
+  sel.length = 1;
+  for (const f of info.exemplos) sel.add(new Option(f.replace(/\.csv$/, '').replace(/[-_]/g, ' '), f));
+  const codeGuardado = location.hash.slice(1);
+  if (codeGuardado && info.salas.some((s) => s.code === codeGuardado)) abrirPainel(codeGuardado);
+  else irCriar();
+}
+function irCriar() {
+  if (fonte) { fonte.close(); fonte = null; }
+  history.replaceState(null, '', '#');
+  mostrar('vCriar');
+  api('GET', '/api/prof/info').then((i) => {
+    info = i;
+    $('#salasExistentes').classList.toggle('hidden', !i.salas.length);
+    $('#listaSalas').innerHTML = '<table><tr><th>Código</th><th>Nome</th><th>Modo</th><th>Estado</th><th>Alunos</th><th></th></tr>' +
+      i.salas.map((s) => `<tr><td><b>${s.code}</b></td><td>${esc(s.titulo)}</td><td>${s.modo === 'elim' ? 'Eliminatória' : 'Prova'}</td><td>${nomeEstado(s.estado, s.modo)}</td><td>${s.alunos}</td><td><button class="sec" data-code="${s.code}">Abrir</button></td></tr>`).join('') + '</table>';
+    $('#listaSalas').querySelectorAll('button').forEach((b) => (b.onclick = () => abrirPainel(b.dataset.code)));
+  }).catch(() => {});
+}
+function nomeEstado(e, modo) {
+  return { espera: 'À espera de alunos', pergunta: 'Pergunta a decorrer', resultado: 'Ronda fechada', aberta: 'Prova aberta', fim: 'Terminada' }[e] || e;
+}
+
+// ---------- perguntas ----------
+function lerPerguntas(texto) {
+  const linhas = texto.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const perguntas = [], erros = [];
+  linhas.forEach((l, i) => {
+    if (l.startsWith('#')) return;
+    const sep = l.includes('\t') ? '\t' : ';';
+    const c = dividir(l, sep).map((x) => x.trim());
+    if (i === 0 && /^pergunta/i.test(c[0])) return; // cabeçalho
+    if (!c[0] || c[1] === undefined || c[1] === '') { erros.push(`Linha ${i + 1}: falta a resposta.`); return; }
+    const t = c[2] ? parseInt(c[2], 10) : 60;
+    const o = c[3] ? c[3].split('|').map((x) => x.trim()).filter(Boolean) : null;
+    perguntas.push({ q: c[0], a: c[1], t: isNaN(t) ? 60 : t, o });
+  });
+  return { perguntas, erros };
+}
+function dividir(linha, sep) { // respeita aspas
+  const out = []; let cur = '', q = false;
+  for (let i = 0; i < linha.length; i++) {
+    const ch = linha[i];
+    if (ch === '"') { if (q && linha[i + 1] === '"') { cur += '"'; i++; } else q = !q; }
+    else if (ch === sep && !q) { out.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+function atualizarPrevia() {
+  const { perguntas, erros } = lerPerguntas($('#perguntas').value);
+  const modo = document.querySelector('input[name=modo]:checked').value;
+  const total = perguntas.reduce((s, p) => s + p.t, 0);
+  $('#resumo').textContent = perguntas.length
+    ? `${perguntas.length} perguntas` + (modo === 'elim' ? ` · até ${Math.ceil(total / 60)} min de jogo` : '')
+    : '';
+  $('#previa').innerHTML = erros.map((e) => `<div class="msg warn small">${esc(e)}</div>`).join('');
+}
+$('#perguntas').oninput = atualizarPrevia;
+document.querySelectorAll('input[name=modo]').forEach((r) => (r.onchange = () => {
+  const m = document.querySelector('input[name=modo]:checked').value;
+  $('#optElim').classList.toggle('hidden', m !== 'elim');
+  $('#optProva').classList.toggle('hidden', m !== 'prova');
+  atualizarPrevia();
+}));
+$('#exemplo').onchange = async (e) => {
+  if (!e.target.value) return;
+  const t = await (await fetch('/exemplos/' + encodeURIComponent(e.target.value))).text();
+  $('#perguntas').value = t;
+  if (!$('#titulo').value) $('#titulo').value = e.target.options[e.target.selectedIndex].text;
+  atualizarPrevia();
+};
+$('#ficheiro').onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const buf = await f.arrayBuffer();
+  let t = new TextDecoder('utf-8').decode(buf);
+  if (t.includes('�')) t = new TextDecoder('windows-1252').decode(buf); // Excel antigo
+  $('#perguntas').value = t.replace(/^﻿/, '');
+  if (!$('#titulo').value) $('#titulo').value = f.name.replace(/\.\w+$/, '');
+  atualizarPrevia();
+};
+$('#fCriar').onsubmit = async (e) => {
+  e.preventDefault();
+  const { perguntas, erros } = lerPerguntas($('#perguntas').value);
+  const err = $('#criarErr');
+  if (!perguntas.length) { err.textContent = 'Não há perguntas válidas.'; err.classList.remove('hidden'); return; }
+  if (erros.length && !confirm(`${erros.length} linhas têm erros e vão ser ignoradas. Continuar?`)) return;
+  err.classList.add('hidden');
+  try {
+    const r = await api('POST', '/api/prof/salas', {
+      titulo: $('#titulo').value,
+      modo: document.querySelector('input[name=modo]:checked').value,
+      perguntas,
+      vidas: $('#vidas').value,
+      continuarEliminados: $('#continuar').checked,
+      duracaoMin: $('#duracao').value,
+    });
+    abrirPainel(r.code);
+  } catch (e2) { err.textContent = e2.message; err.classList.remove('hidden'); }
+};
+
+// ---------- painel ----------
+function abrirPainel(code) {
+  if (fonte) fonte.close();
+  history.replaceState(null, '', '#' + code);
+  mostrar('vSala');
+  estado = null;
+  const local = ['localhost', '127.0.0.1', '::1'].includes(location.hostname);
+  const base = local ? (info.enderecos[0] || location.origin) : location.origin;
+  const url = `${base}/?sala=${code}`;
+  $('#sEndereco').textContent = `${base.replace(/^https?:\/\//, '')}  ·  código ${code}`;
+  $('#sQR').innerHTML = '';
+  if (window.qrcode) {
+    const q = qrcode(0, 'M'); q.addData(url); q.make();
+    $('#sQR').innerHTML = q.createSvgTag({ cellSize: 5, margin: 2 });
+  }
+  $('#sCsv').href = `/api/prof/sala/${code}/csv?pin=${encodeURIComponent(PIN)}`;
+  fonte = new EventSource(`/api/prof/sala/${code}/eventos?pin=${encodeURIComponent(PIN)}`);
+  fonte.onmessage = (ev) => { estado = JSON.parse(ev.data); offset = estado.agora - Date.now(); desenhar(); };
+  fonte.onerror = () => { $('#sEstadoTxt').textContent = 'Ligação perdida. A tentar de novo…'; };
+}
+$('#voltar').onclick = irCriar;
+
+async function acao(acao, extra = {}) {
+  try { await api('POST', `/api/prof/sala/${estado.code}/acao`, { acao, ...extra }); }
+  catch (e) { alert(e.message); }
+}
+
+function botao(txt, fn, cls = '') { const b = document.createElement('button'); b.textContent = txt; b.className = cls; b.type = 'button'; b.onclick = fn; return b; }
+
+function desenhar() {
+  const s = estado; if (!s) return;
+  $('#sTitulo').textContent = s.titulo;
+  $('#sCode').textContent = s.code;
+  $('#sModo').textContent = s.modo === 'elim' ? `Eliminatória · ${s.vidas} ${s.vidas > 1 ? 'vidas' : 'vida'}` : `Prova · ${s.duracaoMin} min`;
+  $('#sEstadoTxt').textContent = nomeEstado(s.estado, s.modo);
+
+  const emJogo = s.alunos.filter((a) => !a.eliminado).length;
+  if (s.modo === 'elim' && s.estado !== 'espera') {
+    $('#sContagem').textContent = `${emJogo}/${s.alunos.length}`;
+    $('#sContagemTxt').textContent = 'em jogo';
+  } else {
+    $('#sContagem').textContent = s.alunos.length;
+    $('#sContagemTxt').textContent = s.alunos.length === 1 ? 'aluno' : 'alunos';
+  }
+
+  // botões
+  const bx = $('#sBotoes'); bx.innerHTML = '';
+  if (s.estado === 'espera') {
+    const b = botao(s.modo === 'elim' ? 'Começar (pergunta 1)' : 'Abrir a prova', () => acao('iniciar'), 'big');
+    b.disabled = !s.alunos.length; bx.append(b);
+  }
+  if (s.estado === 'pergunta') {
+    bx.append(botao('Fechar ronda agora', () => acao('fecharRonda')));
+    bx.append(botao('+30 s', () => acao('maisTempo', { segundos: 30 }), 'sec'));
+  }
+  if (s.estado === 'resultado') {
+    bx.append(botao(`Abrir pergunta ${s.atual + 2}`, () => acao('proxima'), 'big'));
+  }
+  if (s.estado === 'aberta') {
+    bx.append(botao('Fechar a prova agora', () => confirm('Fechar a prova para todos?') && acao('terminar'), 'danger'));
+    bx.append(botao('+5 min', () => acao('maisTempo', { segundos: 300 }), 'sec'));
+  }
+  if (['pergunta', 'resultado'].includes(s.estado)) {
+    bx.append(botao('Terminar jogo', () => confirm('Terminar o jogo e mostrar a classificação?') && acao('terminar'), 'sec'));
+  }
+  if (s.estado === 'fim' || s.estado === 'espera') {
+    bx.append(botao('Apagar sala', async () => { if (confirm('Apagar esta sala? Os resultados ficam guardados na pasta "resultados".')) { await acao('apagar'); irCriar(); } }, 'sec'));
+  }
+
+  // pergunta
+  const pc = $('#sPerguntaCard');
+  if (s.modo === 'elim' && s.atual >= 0 && s.estado !== 'fim') {
+    pc.classList.remove('hidden');
+    const p = s.perguntas[s.atual];
+    $('#sPerguntaNum').textContent = `Pergunta ${s.atual + 1} de ${s.total}`;
+    $('#sPergunta').textContent = p.q;
+    const resp = s.alunos.filter((a) => a.respostaAtual).length;
+    const podem = s.alunos.filter((a) => !a.eliminado || s.continuarEliminados).length;
+    $('#sResposta').innerHTML = `Resposta certa: <b>${esc(p.a.split('|').join(' ou '))}</b>` +
+      (p.o ? ` <span class="muted">· opções: ${esc(p.o.join(', '))}</span>` : '') +
+      (s.estado === 'pergunta' ? `<br><span class="muted">${resp} de ${podem} já responderam</span>` : '');
+    const h = s.estado === 'resultado' ? s.historico[s.historico.length - 1] : null;
+    $('#sRonda').innerHTML = h
+      ? (h.ninguemSai
+          ? `<div class="msg warn">Ninguém acertou. Ninguém sai nesta ronda.</div>`
+          : `<div class="msg ${h.eliminados.length ? 'bad' : 'ok'}">${h.certos} acertaram, ${h.errados} erraram.` +
+            (h.eliminados.length ? ` Saem: <b>${esc(h.eliminados.join(', '))}</b>.` : ' Ninguém foi eliminado.') + `</div>`)
+      : '';
+  } else if (s.modo === 'prova' && s.estado !== 'fim') {
+    pc.classList.remove('hidden');
+    $('#sPerguntaNum').textContent = `${s.total} perguntas`;
+    $('#sPergunta').textContent = s.estado === 'espera' ? 'Os alunos estão a entrar.' : 'A prova está a decorrer.';
+    $('#sResposta').textContent = s.estado === 'aberta'
+      ? `${s.alunos.filter((a) => a.respondidas === s.total).length} alunos já responderam a tudo.` : '';
+    $('#sRonda').innerHTML = '';
+  } else if (s.estado === 'espera') {
+    pc.classList.remove('hidden');
+    $('#sPerguntaNum').textContent = `${s.total} perguntas preparadas`;
+    $('#sPergunta').textContent = 'À espera dos alunos.';
+    $('#sResposta').textContent = 'Quando estiverem todos, carrega em Começar.';
+    $('#sRonda').innerHTML = '';
+  } else pc.classList.add('hidden');
+
+  // fim
+  $('#sFimCard').classList.toggle('hidden', s.estado !== 'fim');
+  if (s.estado === 'fim') {
+    $('#sVencedor').textContent = s.modo === 'elim'
+      ? (s.vencedores.length ? (s.vencedores.length > 1 ? 'Empate: ' : 'Vencedor: ') + s.vencedores.join(', ') : 'Sem vencedor')
+      : `Prova fechada. Média: ${media(s)} certas em ${s.total}.`;
+  }
+
+  // alunos
+  const box = $('#sAlunos');
+  box.innerHTML = s.alunos.map((a) => {
+    let cls = 'st', info = '';
+    if (s.modo === 'elim') {
+      if (a.eliminado) cls += ' out';
+      if (s.estado === 'pergunta' && a.respostaAtual) { cls += ' answered'; info = 'respondeu'; }
+      else if (s.estado === 'pergunta') info = a.eliminado ? 'eliminado' : 'a pensar…';
+      else if (s.estado === 'resultado' && (!a.eliminado || a.respostaAtual || a.eliminadoRonda === s.historico.length)) {
+        const ok = a.respostaAtual && a.respostaAtual.ok;
+        cls += ok ? ' right' : ' wrong';
+        info = a.respostaAtual ? `«${esc(a.respostaAtual.r)}»` : 'sem resposta';
+      }
+      if (a.eliminado && s.estado !== 'pergunta') info += (info ? ' · ' : '') + `saiu na ronda ${a.eliminadoRonda}`;
+      if (!a.eliminado && s.vidas > 1) info += (info ? ' · ' : '') + `${a.vidas} ${a.vidas === 1 ? 'vida' : 'vidas'}`;
+    } else {
+      info = s.estado === 'fim' ? `${a.certas}/${s.total} certas` : `${a.respondidas}/${s.total} respondidas`;
+      if (s.estado === 'aberta' && a.respondidas === s.total) cls += ' answered';
+    }
+    return `<div class="${cls}"><div class="n"><span class="dot ${a.online ? '' : 'off'}" title="${a.online ? 'ligado' : 'desligado'}"></span>${esc(a.nome)}</div>
+      <div class="small muted">${info}</div>
+      ${s.estado === 'espera' ? `<button class="x" title="Remover" data-id="${a.id}">×</button>` : ''}</div>`;
+  }).join('');
+  box.querySelectorAll('.x').forEach((b) => (b.onclick = () => confirm('Remover este aluno?') && acao('expulsar', { id: b.dataset.id })));
+  $('#sSemAlunos').classList.toggle('hidden', s.alunos.length > 0);
+
+  // tabela
+  const mostrarTabela = s.estado === 'fim' || (s.modo === 'elim' && s.historico.length > 0);
+  $('#sTabelaCard').classList.toggle('hidden', !mostrarTabela);
+  if (mostrarTabela) {
+    $('#sTabela').innerHTML = '<tr><th>#</th><th>Nome</th><th>Certas</th><th>Tempo nas certas</th>' + (s.modo === 'elim' ? '<th>Estado</th>' : '') + '</tr>' +
+      s.alunos.map((a, i) => `<tr><td>${i + 1}</td><td>${esc(a.nome)}</td><td>${a.certas}</td><td>${(a.ms / 1000).toFixed(1).replace('.', ',')} s</td>` +
+        (s.modo === 'elim' ? `<td>${a.eliminado ? 'Saiu na ronda ' + a.eliminadoRonda : (s.vencedores.includes(a.nome) ? '<b>Vencedor</b>' : 'Em jogo')}</td>` : '') + '</tr>').join('');
+  }
+  tique();
+}
+function media(s) {
+  if (!s.alunos.length) return 0;
+  return (s.alunos.reduce((t, a) => t + a.certas, 0) / s.alunos.length).toFixed(1).replace('.', ',');
+}
+function tique() {
+  const t = $('#sTimer');
+  if (!estado || !estado.prazo) { t.textContent = estado && estado.estado === 'fim' ? 'Fim' : '–'; t.classList.remove('low'); return; }
+  const rest = Math.max(0, Math.ceil((estado.prazo - (Date.now() + offset)) / 1000));
+  const m = Math.floor(rest / 60), sg = rest % 60;
+  t.textContent = m ? `${m}:${String(sg).padStart(2, '0')}` : `${sg} s`;
+  t.classList.toggle('low', rest <= 10);
+}
+setInterval(tique, 250);
+
+if (PIN) entrar().catch(() => { PIN = ''; sessionStorage.removeItem('pin'); mostrar('vLogin'); });
+else mostrar('vLogin');
+</script>
+</body>
+</html>

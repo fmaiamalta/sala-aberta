@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salas de Jogo</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="wrap narrow">
+
+  <!-- ENTRAR -->
+  <section id="vEntrar" class="card" style="margin-top:40px">
+    <h1>Entrar na sala</h1>
+    <form id="fEntrar">
+      <label for="code">Código da sala</label>
+      <input id="code" type="text" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="0000" style="font-size:1.6rem;letter-spacing:.2em">
+      <label for="nome">O teu nome</label>
+      <input id="nome" type="text" maxlength="40" autocomplete="off" placeholder="Ex.: Ana S.">
+      <div id="entrarErr" class="msg bad hidden"></div>
+      <p style="margin-top:14px"><button class="big" style="width:100%">Entrar</button></p>
+    </form>
+  </section>
+
+  <!-- JOGO -->
+  <section id="vJogo" class="hidden">
+    <div class="row" style="margin:8px 0 14px">
+      <div class="grow">
+        <div class="muted small" id="jTitulo"></div>
+        <div style="font-weight:700" id="jNome"></div>
+      </div>
+      <div style="text-align:right">
+        <div class="timer" id="jTimer" style="font-size:2rem"></div>
+        <div class="hearts" id="jVidas"></div>
+      </div>
+    </div>
+    <div class="card" id="jCorpo"></div>
+  </section>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const guardar = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
+const ler = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+
+let code = null, id = null, fonte = null, s = null, offset = 0;
+let ultimaChave = '', aEnviar = false;
+
+const params = new URLSearchParams(location.search);
+if (params.get('sala')) $('#code').value = params.get('sala');
+$('#nome').value = ler('nome') || '';
+(params.get('sala') ? $('#nome') : $('#code')).focus();
+
+// volta a entrar se a página recarregar
+const sessao = JSON.parse(ler('sessao') || 'null');
+if (sessao && (!params.get('sala') || params.get('sala') === sessao.code)) ligar(sessao.code, sessao.id);
+
+$('#fEntrar').onsubmit = async (e) => {
+  e.preventDefault();
+  const c = $('#code').value.trim(), nome = $('#nome').value.trim();
+  const err = $('#entrarErr');
+  err.classList.add('hidden');
+  if (!/^\d{4}$/.test(c)) return mostrarErro('O código tem 4 algarismos.');
+  if (!nome) return mostrarErro('Escreve o teu nome.');
+  try {
+    const r = await fetch(`/api/sala/${c}/entrar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome }) });
+    const j = await r.json();
+    if (!r.ok) return mostrarErro(j.erro);
+    guardar('nome', nome);
+    guardar('sessao', JSON.stringify({ code: c, id: j.id }));
+    ligar(c, j.id);
+  } catch { mostrarErro('Sem ligação ao servidor.'); }
+};
+function mostrarErro(t) { $('#entrarErr').textContent = t; $('#entrarErr').classList.remove('hidden'); }
+
+function sair(msg) {
+  if (fonte) fonte.close();
+  fonte = null; s = null;
+  guardar('sessao', null);
+  $('#vJogo').classList.add('hidden');
+  $('#vEntrar').classList.remove('hidden');
+  if (msg) mostrarErro(msg);
+}
+
+function ligar(c, i) {
+  code = c; id = i;
+  $('#vEntrar').classList.add('hidden');
+  $('#vJogo').classList.remove('hidden');
+  $('#jCorpo').innerHTML = '<p class="muted">A ligar…</p>';
+  fonte = new EventSource(`/api/sala/${code}/eventos?id=${id}`);
+  fonte.onmessage = (ev) => {
+    const d = JSON.parse(ev.data);
+    if (d.expulso) return sair('O professor tirou-te da sala.');
+    if (d.fechada) return sair('A sala foi fechada.');
+    s = d; offset = s.agora - Date.now();
+    desenhar();
+  };
+  fonte.onerror = async () => {
+    // a sala pode já não existir
+    const r = await fetch(`/api/sala/${code}/existe?id=${id}`).catch(() => null);
+    if (r && r.status === 404) sair('Esta sala já não existe ou foste removido.');
+  };
+}
+
+async function responder(qi, resposta) {
+  const r = await fetch(`/api/sala/${code}/responder`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, qi, resposta }),
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.erro || 'Erro');
+}
+
+function desenhar() {
+  $('#jTitulo').textContent = s.titulo;
+  $('#jNome').textContent = s.nome;
+  $('#jVidas').textContent = s.modo === 'elim' && s.vidasIniciais > 1 && !s.eliminado
+    ? '♥'.repeat(Math.max(0, s.vidas)) + '♡'.repeat(Math.max(0, s.vidasIniciais - s.vidas)) : '';
+  const corpo = $('#jCorpo');
+
+  // evita redesenhar (e apagar o que o aluno está a escrever) quando nada de relevante mudou
+  const chave = JSON.stringify([s.estado, s.atual, s.minhaResposta, s.eliminado, s.vidas, s.certa, s.vencedores, s.posicao, s.perguntas && s.perguntas.length, s.modo === 'prova' ? null : s.emJogo]);
+  if (chave === ultimaChave && !(s.estado === 'espera')) { tique(); return; }
+  ultimaChave = chave;
+
+  if (s.estado === 'espera') {
+    corpo.innerHTML = `<h2>Estás dentro.</h2><p>Espera que o professor comece.</p><p class="muted small">${s.inscritos} ${s.inscritos === 1 ? 'aluno na sala' : 'alunos na sala'}.</p>`;
+  } else if (s.estado === 'fim') {
+    if (s.modo === 'elim') {
+      const ganhei = s.vencedores.includes(s.nome);
+      corpo.innerHTML = `<p class="muted small">Fim do jogo</p>
+        <div class="result-big">${ganhei ? 'Ganhaste!' : `Ficaste em ${s.posicao}.º lugar`}</div>
+        <p>Acertaste ${s.certas} de ${s.total} perguntas.</p>
+        ${!ganhei && s.vencedores.length ? `<p class="muted">Vencedor: ${esc(s.vencedores.join(', '))}</p>` : ''}`;
+    } else {
+      corpo.innerHTML = `<p class="muted small">A prova fechou</p><div class="result-big">Respostas entregues</div><p>O professor tem os teus resultados.</p>`;
+    }
+  } else if (s.modo === 'elim') desenharEliminatoria(corpo);
+  else desenharProva(corpo);
+  tique();
+}
+
+function desenharEliminatoria(corpo) {
+  const num = `<p class="muted small" style="margin:0">Pergunta ${s.atual + 1} de ${s.total} · ${s.emJogo} em jogo</p>`;
+  const avisoElim = s.eliminado ? `<div class="msg warn small">Já saíste do jogo${s.podeResponder ? ', mas podes continuar a treinar' : ''}.</div>` : '';
+
+  if (s.estado === 'pergunta') {
+    if (!s.podeResponder) {
+      corpo.innerHTML = num + avisoElim + `<div class="aluno-q">${esc(s.pergunta.q)}</div><p class="muted">Acompanha os colegas.</p>`;
+      return;
+    }
+    if (s.minhaResposta) {
+      corpo.innerHTML = num + avisoElim + `<div class="aluno-q">${esc(s.pergunta.q)}</div><div class="msg ok">Respondeste: <b>${esc(s.minhaResposta.r)}</b>. Espera pelo fim da ronda.</div>`;
+      return;
+    }
+    if (s.pergunta.o) {
+      corpo.innerHTML = num + avisoElim + `<div class="aluno-q">${esc(s.pergunta.q)}</div><div class="opts">` +
+        s.pergunta.o.map((o, i) => `<button data-i="${i}">${esc(o)}</button>`).join('') + '</div><div id="err" class="msg bad hidden"></div>';
+      corpo.querySelectorAll('.opts button').forEach((b) => (b.onclick = () => enviar(s.pergunta.o[b.dataset.i])));
+    } else {
+      corpo.innerHTML = num + avisoElim + `<div class="aluno-q">${esc(s.pergunta.q)}</div>
+        <form id="fResp"><input id="resp" type="text" autocomplete="off" placeholder="A tua resposta" style="font-size:1.3rem">
+        <div id="err" class="msg bad hidden"></div>
+        <p style="margin-top:12px"><button class="big" style="width:100%">Enviar</button></p></form>
+        <p class="muted small">Só podes enviar uma vez.</p>`;
+      const inp = $('#resp'); inp.focus();
+      $('#fResp').onsubmit = (e) => { e.preventDefault(); if (inp.value.trim()) enviar(inp.value.trim()); };
+    }
+    return;
+  }
+
+  if (s.estado === 'resultado') {
+    const r = s.ronda || {};
+    let titulo, cls;
+    if (!s.minhaResposta && !s.podeResponder) { titulo = 'Ronda fechada'; cls = ''; }
+    else if (s.acertei) { titulo = 'Certo!'; cls = 'ok'; }
+    else if (r.ninguemSai) { titulo = 'Ninguém acertou'; cls = 'warn'; }
+    else if (s.eliminado && r.eliminados && r.eliminados.includes(s.nome)) { titulo = 'Saíste do jogo'; cls = 'bad'; }
+    else { titulo = s.minhaResposta ? 'Errado' : 'Sem resposta'; cls = 'bad'; }
+    corpo.innerHTML = num + `<div class="result-big" style="color:var(--${cls || 'ink'})">${titulo}</div>
+      <p>${esc(s.pergunta.q)}</p>
+      <p>Resposta certa: <b>${esc(s.certa)}</b>${s.minhaResposta ? `<br><span class="muted">A tua: ${esc(s.minhaResposta.r)}</span>` : ''}</p>
+      ${r.ninguemSai ? '<div class="msg warn small">Como ninguém acertou, ninguém sai nesta ronda.</div>' : ''}
+      ${!s.eliminado && !s.acertei && !r.ninguemSai && s.vidasIniciais > 1 ? `<div class="msg warn small">Perdeste uma vida. Restam ${s.vidas}.</div>` : ''}
+      <p class="muted small">Espera pela próxima pergunta.</p>`;
+  }
+}
+
+async function enviar(resposta) {
+  if (aEnviar) return;
+  aEnviar = true;
+  try { await responder(s.atual, resposta); }
+  catch (e) { const el = $('#err'); if (el) { el.textContent = e.message; el.classList.remove('hidden'); } }
+  finally { aEnviar = false; }
+}
+
+function desenharProva(corpo) {
+  if (s.estado !== 'aberta' || !s.perguntas) { corpo.innerHTML = '<p class="muted">A aguardar…</p>'; return; }
+  corpo.innerHTML = `<p class="muted small" style="margin:0">${s.perguntas.length} perguntas. As respostas ficam guardadas sozinhas e podes alterá-las até a prova fechar.</p>` +
+    s.perguntas.map((p, i) => `<div class="prova-q"><p><b>${i + 1}.</b> ${esc(p.q)}<span class="saved hidden" id="ok${i}">guardado</span></p>` +
+      (p.o
+        ? `<div class="opts">${p.o.map((o) => `<button type="button" data-q="${i}" data-v="${esc(o)}" class="${s.minhas[i] === o ? 'sel' : ''}">${esc(o)}</button>`).join('')}</div>`
+        : `<input type="text" data-q="${i}" value="${esc(s.minhas[i] || '')}" autocomplete="off" placeholder="Resposta">`) +
+      '</div>').join('') + '<div id="err" class="msg bad hidden"></div>';
+
+  const marcarGuardado = (i) => { const el = $('#ok' + i); el.classList.remove('hidden'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.add('hidden'), 1500); };
+  const falha = (e) => { const el = $('#err'); el.textContent = e.message; el.classList.remove('hidden'); };
+  corpo.querySelectorAll('.opts button').forEach((b) => (b.onclick = async () => {
+    const i = Number(b.dataset.q);
+    try {
+      await responder(i, b.dataset.v);
+      b.parentNode.querySelectorAll('button').forEach((x) => x.classList.toggle('sel', x === b));
+      s.minhas[i] = b.dataset.v; marcarGuardado(i);
+    } catch (e) { falha(e); }
+  }));
+  corpo.querySelectorAll('input[data-q]').forEach((inp) => {
+    let t;
+    const gravar = async () => {
+      const i = Number(inp.dataset.q);
+      if ((s.minhas[i] || '') === inp.value.trim()) return;
+      try { await responder(i, inp.value.trim()); s.minhas[i] = inp.value.trim(); marcarGuardado(i); } catch (e) { falha(e); }
+    };
+    inp.oninput = () => { clearTimeout(t); t = setTimeout(gravar, 700); };
+    inp.onblur = gravar;
+  });
+}
+
+function tique() {
+  const t = $('#jTimer');
+  if (!s || !s.prazo) { t.textContent = ''; return; }
+  const rest = Math.max(0, Math.ceil((s.prazo - (Date.now() + offset)) / 1000));
+  const m = Math.floor(rest / 60), sg = rest % 60;
+  t.textContent = m ? `${m}:${String(sg).padStart(2, '0')}` : `${sg} s`;
+  t.classList.toggle('low', rest <= 10);
+}
+setInterval(tique, 250);
+</script>
+</body>
+</html>

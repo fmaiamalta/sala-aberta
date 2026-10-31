@@ -1,0 +1,11 @@
+pergunta;resposta;segundos;opções
+Que componente executa as instruções?;CPU;30;CPU|RAM|ROM|Disco
+Que memória perde os dados quando desligas o computador?;RAM;30;RAM|ROM|Disco|CD
+Onde está guardada a BIOS?;ROM;30;RAM|ROM|Monitor|CPU
+O teclado é um periférico de…;Entrada;20;Entrada|Saída|Armazenamento
+A impressora é um periférico de…;Saída;20;Entrada|Saída|Armazenamento
+O microfone é um periférico de…;Entrada;20;Entrada|Saída|Armazenamento
+Onde ficam os teus ficheiros quando desligas o computador?;No disco;30;Na RAM|No disco|Na CPU|No monitor
+Escreves a letra A no teclado. Para onde vai o sinal primeiro?;CPU;30;Monitor|CPU|RAM|Disco
+Que caminho faz a letra A até aparecer no ecrã?;Teclado → CPU → RAM → CPU → Monitor;45;Teclado → Monitor|Teclado → RAM → Monitor|Teclado → CPU → RAM → CPU → Monitor|Teclado → Disco → Monitor
+Que componente só envia dados para a CPU e nunca os recebe?;ROM;30;RAM|ROM|Disco|CPU
