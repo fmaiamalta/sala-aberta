@@ -118,3 +118,7 @@ table.aval input.nota { width: 64px; padding: 6px 8px; font-weight: 700; }
 .mexida { outline: 2px dashed var(--warn); outline-offset: 1px; }
 .limites input { width: 64px; padding: 6px 8px; }
 .limites span { white-space: nowrap; }
+.mencoes .mrow { gap: 8px; margin-bottom: 6px; flex-wrap: nowrap; }
+.mencoes .mrow span { white-space: nowrap; min-width: 92px; }
+.mencoes input[data-mmin] { width: 60px; padding: 6px 8px; }
+.mencoes button { padding: 6px 12px; }

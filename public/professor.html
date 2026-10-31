@@ -62,6 +62,9 @@
           <label for="duracao">Duração da prova (minutos)</label>
           <input id="duracao" type="number" min="1" max="180" value="15">
         </div>
+        <label for="perfilCriar">Critérios de avaliação</label>
+        <select id="perfilCriar" class="selPerfil"></select>
+        <p class="muted small" style="margin-top:6px">Podes mudar no fim, no quadro Avaliação. É lá que crias os teus próprios perfis.</p>
       </div>
 
       <div class="card">
@@ -142,6 +145,14 @@
         <a id="sCsv2" href="#"><button class="sec" type="button">Descarregar com notas (CSV)</button></a>
       </div>
       <p class="muted small">A app corrige sozinha. Clica numa resposta para a marcar como certa ou errada, muda as cotações ou escreve uma nota à mão. Tudo entra no CSV.</p>
+      <div class="row" style="align-items:flex-end">
+        <div class="grow">
+          <label for="aPerfil">Critérios</label>
+          <select id="aPerfil" class="selPerfil"></select>
+        </div>
+        <button type="button" class="sec" id="aGuardarPerfil">Guardar como perfil</button>
+        <button type="button" class="sec" id="aApagarPerfil">Apagar perfil</button>
+      </div>
       <div class="grid2">
         <div>
           <label for="aEscala">Escala</label>
@@ -160,6 +171,9 @@
           </div>
         </div>
       </div>
+      <label>Menções (a partir de que percentagem)</label>
+      <div id="aMencoes" class="mencoes"></div>
+      <button type="button" class="sec" id="aMaisMencao" style="margin-top:6px">+ menção</button>
       <div id="aAviso"></div>
       <div id="aResumo" class="row" style="margin:14px 0"></div>
       <div style="overflow-x:auto"><table id="aTabela" class="aval"></table></div>
@@ -208,6 +222,8 @@ async function entrar() {
   else irCriar();
 }
 function irCriar() {
+  preencherPerfis($('#perfilCriar'));
+  try { const u = localStorage.getItem('ultimoPerfil'); const i = todosPerfis().findIndex((p) => p.nome === u); if (i >= 0) $('#perfilCriar').value = String(i); } catch {}
   if (fonte) { fonte.close(); fonte = null; }
   history.replaceState(null, '', '#');
   mostrar('vCriar');
@@ -297,7 +313,9 @@ $('#fCriar').onsubmit = async (e) => {
       vidas: $('#vidas').value,
       continuarEliminados: $('#continuar').checked,
       duracaoMin: $('#duracao').value,
+      perfil: todosPerfis()[Number($('#perfilCriar').value)],
     });
+    try { localStorage.setItem('ultimoPerfil', $('#perfilCriar').selectedOptions[0].text); } catch {}
     abrirPainel(r.code);
   } catch (e2) { err.textContent = e2.message; err.classList.remove('hidden'); }
 };
@@ -482,13 +500,22 @@ function desenharAvaliacao() {
     const neg = notas.filter((x) => x < 9.5).length;
     resumo += `<span class="pill ok">Positivas: ${notas.length - neg}</span><span class="pill bad">Negativas: ${neg}</span>`;
   }
+  for (const m of av.mencoes) resumo += `<span class="pill">${esc(m.nome)}: ${s.alunos.filter((a) => a.avaliacao.mencao === m.nome).length}</span>`;
   $('#aResumo').innerHTML = resumo;
+  preencherPerfis($('#aPerfil'), av.perfil);
+  $('#aApagarPerfil').disabled = !lerPerfis().some((p) => p.nome === av.perfil);
+  $('#aMencoes').innerHTML = av.mencoes.map((m, i) => `<div class="row mrow">
+      <span>${i === 0 ? 'desde 0%' : `≥ <input type="text" inputmode="decimal" data-mmin="${i}" value="${fmt(m.min)}">%`}</span>
+      <input type="text" data-mnome="${i}" value="${esc(m.nome)}" class="grow">
+      ${av.mencoes.length > 1 ? `<button type="button" class="sec" data-mdel="${i}" title="Remover">×</button>` : ''}</div>`).join('');
+  $('#aMencoes').querySelectorAll('input').forEach((inp) => (inp.onchange = enviarMencoes));
+  $('#aMencoes').querySelectorAll('[data-mdel]').forEach((b) => (b.onclick = () => enviarMencoes(null, Number(b.dataset.mdel))));
 
   // tabela
   const qs = s.avaliadas;
   let h = '<thead><tr><th>Aluno</th>' + qs.map((qi) => `<th title="${esc(s.perguntas[qi].q)}">P${qi + 1}</th>`).join('') +
-    '<th>Pontos</th><th>%</th><th>' + (cinco ? 'Nível' : 'Nota') + '</th></tr>';
-  h += '<tr class="cot"><td class="muted small">Cotação</td>' + qs.map((qi) => `<td><input type="text" inputmode="decimal" data-cot="${qi}" value="${fmt(av.cotacoes[qi])}"></td>`).join('') + '<td></td><td></td><td></td></tr></thead><tbody>';
+    '<th>Pontos</th><th>%</th><th>' + (cinco ? 'Nível' : 'Nota') + '</th><th>Menção</th></tr>';
+  h += '<tr class="cot"><td class="muted small">Cotação</td>' + qs.map((qi) => `<td><input type="text" inputmode="decimal" data-cot="${qi}" value="${fmt(av.cotacoes[qi])}"></td>`).join('') + '<td></td><td></td><td></td><td></td></tr></thead><tbody>';
   h += s.alunos.map((a) => {
     const cor = av.correcoes[a.id] || {};
     const cels = qs.map((qi) => {
@@ -500,7 +527,7 @@ function desenharAvaliacao() {
     }).join('');
     const v = a.avaliacao;
     return `<tr><td><b>${esc(a.nome)}</b></td>${cels}<td>${fmt(v.pontos)}/${fmt(v.total)}</td><td>${fmt(v.pct)}%</td>
-      <td><input type="text" inputmode="decimal" class="nota ${v.manual !== null ? 'mexida' : ''}" data-nota="${a.id}" value="${fmt(v.nota)}" title="Calculada: ${fmt(v.calculada)}"></td></tr>`;
+      <td><input type="text" inputmode="decimal" class="nota ${v.manual !== null ? 'mexida' : ''}" data-nota="${a.id}" value="${fmt(v.nota)}" title="Calculada: ${fmt(v.calculada)}"></td><td>${esc(v.mencao)}</td></tr>`;
   }).join('') + '</tbody>';
   $('#aTabela').innerHTML = h;
   $('#aLegenda').innerHTML = qs.map((qi) => `<div><b>P${qi + 1}.</b> ${esc(s.perguntas[qi].q)} <span class="pill ok">${esc(s.perguntas[qi].a.split('|').join(' ou '))}</span></div>`).join('') +
@@ -516,6 +543,64 @@ function desenharAvaliacao() {
   $('#aTabela').querySelectorAll('[data-nota]').forEach((inp) => (inp.onchange = () => acao('avaliacao', { manual: { id: inp.dataset.nota, valor: inp.value.trim() === '' ? null : inp.value } })));
 }
 $('#aEscala').onchange = (e) => acao('avaliacao', { escala: e.target.value });
+
+function lerMencoesDoEcra() {
+  return estado.aval.mencoes.map((m, i) => ({
+    min: i === 0 ? 0 : (document.querySelector(`[data-mmin="${i}"]`) || {}).value ?? m.min,
+    nome: (document.querySelector(`[data-mnome="${i}"]`) || {}).value ?? m.nome,
+  })).map((m) => ({ min: Number(String(m.min).replace(',', '.')), nome: String(m.nome).trim() }));
+}
+function enviarMencoes(_e, apagar) {
+  let m = lerMencoesDoEcra();
+  if (Number.isInteger(apagar)) m = m.filter((_, i) => i !== apagar);
+  if (m.some((x) => !x.nome)) { alert('Cada menção precisa de um nome.'); chaveAval = ''; return desenharAvaliacao(); }
+  acao('avaliacao', { mencoes: m });
+}
+$('#aMaisMencao').onclick = () => {
+  const m = lerMencoesDoEcra();
+  const ultimo = m[m.length - 1].min;
+  m.push({ min: Math.min(100, ultimo + 10), nome: 'Nova menção' });
+  acao('avaliacao', { mencoes: m });
+};
+
+// ---------- perfis de critérios (guardados neste browser) ----------
+const MENCOES_PADRAO = [{ min: 0, nome: 'Insuficiente' }, { min: 50, nome: 'Suficiente' }, { min: 70, nome: 'Bom' }, { min: 90, nome: 'Muito Bom' }];
+const PERFIS_BASE = [
+  { nome: 'Básico: níveis 1 a 5', escala: '5', limites: [20, 50, 70, 90], mencoes: MENCOES_PADRAO, base: true },
+  { nome: 'Secundário: 0 a 20 valores', escala: '20', limites: [20, 50, 70, 90], mencoes: MENCOES_PADRAO, base: true },
+];
+function lerPerfis() { try { return JSON.parse(localStorage.getItem('perfis') || '[]'); } catch { return []; } }
+function gravarPerfis(l) { try { localStorage.setItem('perfis', JSON.stringify(l)); return true; } catch { return false; } }
+function todosPerfis() { return [...PERFIS_BASE, ...lerPerfis()]; }
+function preencherPerfis(sel, atual) {
+  const lista = todosPerfis();
+  sel.innerHTML = lista.map((p, i) => `<option value="${i}">${esc(p.nome)}</option>`).join('') +
+    (sel.id === 'aPerfil' && !lista.some((p) => p.nome === atual) ? '<option value="" selected>Personalizado (não guardado)</option>' : '');
+  const i = lista.findIndex((p) => p.nome === atual);
+  if (i >= 0) sel.value = String(i);
+}
+$('#aPerfil').onchange = (e) => {
+  const p = todosPerfis()[Number(e.target.value)];
+  if (p) acao('avaliacao', { perfil: p });
+};
+$('#aGuardarPerfil').onclick = () => {
+  const nome = (prompt('Nome do perfil (por exemplo: Critérios 3.º ciclo 2026/27):', estado.aval.perfil && !PERFIS_BASE.some((p) => p.nome === estado.aval.perfil) ? estado.aval.perfil : '') || '').trim();
+  if (!nome) return;
+  if (PERFIS_BASE.some((p) => p.nome === nome)) return alert('Esse nome está reservado. Escolhe outro.');
+  const l = lerPerfis().filter((p) => p.nome !== nome);
+  const av = estado.aval;
+  const novo = { nome, escala: av.escala, limites: av.limites, mencoes: lerMencoesDoEcra() };
+  l.push(novo);
+  if (!gravarPerfis(l)) return alert('Este browser não deixou guardar. Experimenta fora da navegação privada.');
+  acao('avaliacao', { perfil: novo });
+  preencherPerfis($('#perfilCriar'));
+};
+$('#aApagarPerfil').onclick = () => {
+  const nome = estado.aval.perfil;
+  if (!confirm(`Apagar o perfil "${nome}"? As notas desta sala não mudam.`)) return;
+  gravarPerfis(lerPerfis().filter((p) => p.nome !== nome));
+  chaveAval = ''; preencherPerfis($('#perfilCriar')); desenharAvaliacao();
+};
 document.querySelectorAll('[data-l]').forEach((inp) => (inp.onchange = () => {
   const l = [...document.querySelectorAll('[data-l]')].map((x) => Number(x.value));
   if (l.some((x, i) => i > 0 && x < l[i - 1])) { alert('Cada nível tem de pedir uma percentagem igual ou maior do que o anterior.'); chaveAval = ''; desenharAvaliacao(); return; }

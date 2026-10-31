@@ -50,7 +50,29 @@ function novoCodigo() {
   return c;
 }
 
-function criarSala({ titulo, modo, perguntas, vidas, continuarEliminados, duracaoMin }) {
+const MENCOES_PADRAO = [
+  { min: 0, nome: 'Insuficiente' },
+  { min: 50, nome: 'Suficiente' },
+  { min: 70, nome: 'Bom' },
+  { min: 90, nome: 'Muito Bom' },
+];
+function limparMencoes(m) {
+  if (!Array.isArray(m)) return null;
+  const l = m
+    .map((x) => ({ min: Math.max(0, Math.min(100, Number(String(x.min).replace(',', '.')) || 0)), nome: String(x.nome || '').trim().slice(0, 30) }))
+    .filter((x) => x.nome)
+    .sort((a, b) => a.min - b.min);
+  if (!l.length) return [];
+  l[0].min = 0; // a primeira menção cobre sempre desde 0%
+  return l.slice(0, 8);
+}
+function limparLimites(l) {
+  if (!Array.isArray(l) || l.length !== 4) return null;
+  const v = l.map((x) => Math.max(0, Math.min(100, Number(x) || 0)));
+  return v.every((x, i) => i === 0 || x >= v[i - 1]) ? v : null;
+}
+
+function criarSala({ titulo, modo, perguntas, vidas, continuarEliminados, duracaoMin, perfil }) {
   const sala = {
     code: novoCodigo(),
     titulo: String(titulo || 'Sala').slice(0, 80),
@@ -71,8 +93,10 @@ function criarSala({ titulo, modo, perguntas, vidas, continuarEliminados, duraca
     alunos: new Map(), // id -> aluno
     historico: [], // por ronda: {qi, certos, errados, eliminados, ninguemSai}
     aval: {
-      escala: '20', // '5' (níveis 1 a 5) ou '20' (0 a 20)
-      limites: [20, 50, 70, 90], // % mínima para os níveis 2, 3, 4 e 5
+      perfil: (perfil && String(perfil.nome || '').slice(0, 60)) || '',
+      escala: perfil && perfil.escala === '5' ? '5' : '20', // '5' (níveis 1 a 5) ou '20' (0 a 20)
+      limites: (perfil && limparLimites(perfil.limites)) || [20, 50, 70, 90], // % mínima para os níveis 2, 3, 4 e 5
+      mencoes: (perfil && limparMencoes(perfil.mencoes)) || MENCOES_PADRAO,
       cotacoes: perguntas.map(() => 1),
       correcoes: {}, // id -> {qi: true|false}
       manual: {}, // id -> nota escrita à mão
@@ -224,18 +248,38 @@ function avaliar(sala, a) {
   const pct = total ? (pontos / total) * 100 : 0;
   const calculada = sala.aval.escala === '5' ? nivel(pct, sala.aval.limites) : Math.round(pct / 5 * 10) / 10;
   const manual = sala.aval.manual[a.id];
-  return { pontos, total, pct: Math.round(pct * 10) / 10, calculada, nota: manual ?? calculada, manual: manual ?? null };
+  const nota = manual ?? calculada;
+  // a menção segue a nota final: se o professor mudou a nota, a menção acompanha
+  let pctMencao = pct;
+  if (manual != null) {
+    pctMencao = sala.aval.escala === '5' ? (manual <= 1 ? 0 : sala.aval.limites[Math.round(manual) - 2]) : manual * 5;
+  }
+  let mencao = '';
+  for (const m of sala.aval.mencoes) if (pctMencao >= m.min - 1e-9) mencao = m.nome;
+  return { pontos, total, pct: Math.round(pct * 10) / 10, calculada, nota, manual: manual ?? null, mencao };
 }
 const virgula = (n) => String(n).replace('.', ',');
 function atualizarAval(sala, b) {
   const av = sala.aval;
+  if (b.perfil) {
+    const p = b.perfil;
+    const escala = p.escala === '5' ? '5' : '20';
+    if (escala !== av.escala) av.manual = {};
+    av.escala = escala;
+    av.limites = limparLimites(p.limites) || av.limites;
+    av.mencoes = limparMencoes(p.mencoes) || av.mencoes;
+    av.perfil = String(p.nome || '').slice(0, 60);
+    return;
+  }
+  if (b.mencoes) { const m = limparMencoes(b.mencoes); if (m) { av.mencoes = m; av.perfil = ''; } }
   if (b.escala === '5' || b.escala === '20') {
+    if (b.escala !== av.escala) av.perfil = '';
     if (b.escala !== av.escala) av.manual = {}; // notas manuais deixam de fazer sentido noutra escala
     av.escala = b.escala;
   }
   if (Array.isArray(b.limites) && b.limites.length === 4) {
     const l = b.limites.map((x) => Math.max(0, Math.min(100, Number(x) || 0)));
-    if (l.every((x, i) => i === 0 || x >= l[i - 1])) av.limites = l;
+    if (l.every((x, i) => i === 0 || x >= l[i - 1])) { av.limites = l; av.perfil = ''; }
   }
   if (Number.isInteger(b.qi) && b.qi >= 0 && b.qi < sala.perguntas.length && b.cotacao !== undefined) {
     av.cotacoes[b.qi] = Math.max(0, Math.min(100, Number(String(b.cotacao).replace(',', '.')) || 0));
@@ -263,13 +307,13 @@ function csvCampo(v) {
 }
 function csvSala(sala) {
   const escala = sala.aval.escala === '5' ? 'Nível (1 a 5)' : 'Nota (0 a 20)';
-  const cab = ['Posição', 'Nome', escala, 'Percentagem', 'Pontos', 'Cotação total', 'Certas', 'Tempo nas certas (s)', 'Estado'];
+  const cab = ['Posição', 'Nome', escala, 'Menção', 'Percentagem', 'Pontos', 'Cotação total', 'Certas', 'Tempo nas certas (s)', 'Estado'];
   sala.perguntas.forEach((p, i) => cab.push(`P${i + 1} resposta`, `P${i + 1} certa?`));
   const linhas = [cab];
   classificacao(sala).forEach((x, i) => {
     const av = avaliar(sala, x.a);
     const l = [
-      i + 1, x.a.nome, virgula(av.nota), virgula(av.pct) + '%', virgula(av.pontos), virgula(av.total),
+      i + 1, x.a.nome, virgula(av.nota), av.mencao, virgula(av.pct) + '%', virgula(av.pontos), virgula(av.total),
       x.certas, (x.ms / 1000).toFixed(1).replace('.', ','),
       sala.modo === 'elim' ? (x.a.eliminado ? `Eliminado na ronda ${x.a.eliminadoRonda}` : 'Em jogo') : 'Terminou',
     ];
@@ -279,7 +323,7 @@ function csvSala(sala) {
     });
     linhas.push(l);
   });
-  const certas = ['', 'Resposta certa', '', '', '', '', '', '', ''];
+  const certas = ['', 'Resposta certa', '', '', '', '', '', '', '', ''];
   sala.perguntas.forEach((p) => certas.push(p.a.split('|').join(' ou '), ''));
   linhas.push([], certas);
   return '﻿' + linhas.map((l) => l.map(csvCampo).join(';')).join('\r\n');

@@ -207,6 +207,7 @@ function desenharProva(corpo) {
   const falha = (e) => { const el = $('#err'); el.textContent = e.message; el.classList.remove('hidden'); };
   corpo.querySelectorAll('.opts button').forEach((b) => (b.onclick = async () => {
     const i = Number(b.dataset.q);
+    if (!s || s.estado !== 'aberta' || !s.minhas) return;
     try {
       await responder(i, b.dataset.v);
       b.parentNode.querySelectorAll('button').forEach((x) => x.classList.toggle('sel', x === b));
@@ -217,6 +218,7 @@ function desenharProva(corpo) {
     let t;
     const gravar = async () => {
       const i = Number(inp.dataset.q);
+      if (!s || s.estado !== 'aberta' || !s.minhas) return; // a prova já fechou
       if ((s.minhas[i] || '') === inp.value.trim()) return;
       try { await responder(i, inp.value.trim()); s.minhas[i] = inp.value.trim(); marcarGuardado(i); } catch (e) { falha(e); }
     };

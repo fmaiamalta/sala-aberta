@@ -58,11 +58,13 @@ Quando a prova (ou o jogo) termina, aparece no painel o quadro **Avaliação**:
 - **Escala:** níveis 1 a 5 (5.º ao 9.º ano) ou 0 a 20 valores (10.º ao 12.º ano).
 - **Níveis:** defines a percentagem mínima de cada nível. Por defeito: 2 a partir de 20%, 3 a partir de 50%, 4 a partir de 70%, 5 a partir de 90%. Ajusta aos critérios da tua escola.
 - **0 a 20:** a nota é a percentagem a dividir por 5, com uma casa decimal (75% dá 15,0).
+- **Menções:** por defeito, Insuficiente (0 a 49%), Suficiente (50 a 69%), Bom (70 a 89%) e Muito Bom (90 a 100%). Podes mudar os limites, os nomes, juntar ou tirar menções (por exemplo, Fraco abaixo de 20%). Se escreveres uma nota à mão, a menção acompanha essa nota.
+- **Perfis de critérios:** carrega em "Guardar como perfil" e dá-lhe um nome, por exemplo "Critérios 3.º ciclo". O perfil guarda a escala, os níveis e as menções. Ao criar uma sala, escolhes o perfil numa lista. Os perfis ficam guardados no browser onde os criaste: se mudares de computador, tens de os criar outra vez.
 - **Cotações:** cada pergunta vale 1 ponto por defeito. Podes mudar.
 - **Correções:** clica numa resposta para a marcar como certa ou errada. Útil quando o aluno escreve uma resposta certa de outra forma.
 - **Nota manual:** escreve por cima da nota calculada. Apaga o valor para voltar à calculada.
 
-O CSV descarregado inclui a nota, a percentagem e os pontos de cada aluno, e uma linha final com as respostas certas.
+O CSV descarregado inclui a nota, a menção, a percentagem e os pontos de cada aluno, e uma linha final com as respostas certas.
 
 Na eliminatória, as perguntas a que um aluno eliminado já não respondeu contam como erradas. Para avaliar, usa a prova cronometrada.
 
