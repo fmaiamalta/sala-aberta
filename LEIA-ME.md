@@ -51,6 +51,21 @@ Podes preparar as perguntas no Excel com 4 colunas e colar na caixa de texto, ou
 - Opção "eliminados continuam a responder": treinam, mas não contam para o vencedor.
 - Se as perguntas acabarem com mais de um aluno em jogo, ganha quem acertou mais. Em empate, quem respondeu mais depressa.
 
+## Avaliação
+
+Quando a prova (ou o jogo) termina, aparece no painel o quadro **Avaliação**:
+
+- **Escala:** níveis 1 a 5 (5.º ao 9.º ano) ou 0 a 20 valores (10.º ao 12.º ano).
+- **Níveis:** defines a percentagem mínima de cada nível. Por defeito: 2 a partir de 20%, 3 a partir de 50%, 4 a partir de 70%, 5 a partir de 90%. Ajusta aos critérios da tua escola.
+- **0 a 20:** a nota é a percentagem a dividir por 5, com uma casa decimal (75% dá 15,0).
+- **Cotações:** cada pergunta vale 1 ponto por defeito. Podes mudar.
+- **Correções:** clica numa resposta para a marcar como certa ou errada. Útil quando o aluno escreve uma resposta certa de outra forma.
+- **Nota manual:** escreve por cima da nota calculada. Apaga o valor para voltar à calculada.
+
+O CSV descarregado inclui a nota, a percentagem e os pontos de cada aluno, e uma linha final com as respostas certas.
+
+Na eliminatória, as perguntas a que um aluno eliminado já não respondeu contam como erradas. Para avaliar, usa a prova cronometrada.
+
 ## Resultados
 
 Cada jogo, ao terminar, grava um CSV na pasta `resultados` (abre no Excel). Também podes descarregá-lo no painel.

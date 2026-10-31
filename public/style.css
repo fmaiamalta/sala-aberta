@@ -107,3 +107,14 @@ th { color: var(--muted); font-weight: 600; }
 .hearts { font-size: 1.3rem; letter-spacing: 2px; color: var(--bad); }
 .prova-q { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
 .saved { font-size: .82rem; color: var(--ok); margin-left: 8px; }
+
+/* avaliação */
+table.aval th, table.aval td { padding: 4px 6px; white-space: nowrap; }
+table.aval tr.cot input { width: 52px; padding: 4px 6px; font-size: .85rem; }
+table.aval input.nota { width: 64px; padding: 6px 8px; font-weight: 700; }
+.cel { font-weight: 500; font-size: .85rem; padding: 5px 8px; min-width: 52px; border: 1px solid transparent; }
+.cel.right { background: var(--ok-bg); color: var(--ok); }
+.cel.wrong { background: var(--bad-bg); color: var(--bad); }
+.mexida { outline: 2px dashed var(--warn); outline-offset: 1px; }
+.limites input { width: 64px; padding: 6px 8px; }
+.limites span { white-space: nowrap; }

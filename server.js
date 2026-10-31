@@ -70,6 +70,13 @@ function criarSala({ titulo, modo, perguntas, vidas, continuarEliminados, duraca
     abertaEm: null,
     alunos: new Map(), // id -> aluno
     historico: [], // por ronda: {qi, certos, errados, eliminados, ninguemSai}
+    aval: {
+      escala: '20', // '5' (níveis 1 a 5) ou '20' (0 a 20)
+      limites: [20, 50, 70, 90], // % mínima para os níveis 2, 3, 4 e 5
+      cotacoes: perguntas.map(() => 1),
+      correcoes: {}, // id -> {qi: true|false}
+      manual: {}, // id -> nota escrita à mão
+    },
     vencedores: [],
     criadaEm: now(),
     clientesProf: new Set(),
@@ -189,33 +196,101 @@ function abrirProva(sala) {
   sala.temporizador = setTimeout(() => terminar(sala), sala.duracaoMs + 300);
 }
 
+// ---------- avaliação ----------
+// Perguntas que contam: na prova, todas; na eliminatória, só as que chegaram a ser abertas.
+function perguntasAvaliadas(sala) {
+  if (sala.modo === 'prova') return sala.perguntas.map((_, i) => i);
+  return [...new Set(sala.historico.map((h) => h.qi))];
+}
+function certaFinal(sala, a, qi) {
+  const c = sala.aval.correcoes[a.id];
+  if (c && typeof c[qi] === 'boolean') return c[qi];
+  return !!a.respostas[qi]?.ok;
+}
+function nivel(pct, limites) {
+  let n = 1;
+  limites.forEach((l) => { if (pct >= l) n++; });
+  return n;
+}
+function avaliar(sala, a) {
+  const qs = perguntasAvaliadas(sala);
+  const cot = sala.aval.cotacoes;
+  let pontos = 0, total = 0;
+  for (const qi of qs) {
+    const c = Number(cot[qi]) || 0;
+    total += c;
+    if (certaFinal(sala, a, qi)) pontos += c;
+  }
+  const pct = total ? (pontos / total) * 100 : 0;
+  const calculada = sala.aval.escala === '5' ? nivel(pct, sala.aval.limites) : Math.round(pct / 5 * 10) / 10;
+  const manual = sala.aval.manual[a.id];
+  return { pontos, total, pct: Math.round(pct * 10) / 10, calculada, nota: manual ?? calculada, manual: manual ?? null };
+}
+const virgula = (n) => String(n).replace('.', ',');
+function atualizarAval(sala, b) {
+  const av = sala.aval;
+  if (b.escala === '5' || b.escala === '20') {
+    if (b.escala !== av.escala) av.manual = {}; // notas manuais deixam de fazer sentido noutra escala
+    av.escala = b.escala;
+  }
+  if (Array.isArray(b.limites) && b.limites.length === 4) {
+    const l = b.limites.map((x) => Math.max(0, Math.min(100, Number(x) || 0)));
+    if (l.every((x, i) => i === 0 || x >= l[i - 1])) av.limites = l;
+  }
+  if (Number.isInteger(b.qi) && b.qi >= 0 && b.qi < sala.perguntas.length && b.cotacao !== undefined) {
+    av.cotacoes[b.qi] = Math.max(0, Math.min(100, Number(String(b.cotacao).replace(',', '.')) || 0));
+  }
+  if (b.correcao && sala.alunos.has(b.correcao.id) && Number.isInteger(b.correcao.qi)) {
+    const { id, qi, valor } = b.correcao;
+    av.correcoes[id] = av.correcoes[id] || {};
+    if (valor === null) delete av.correcoes[id][qi]; else av.correcoes[id][qi] = !!valor;
+  }
+  if (b.manual && sala.alunos.has(b.manual.id)) {
+    const v = b.manual.valor;
+    if (v === null || v === '') delete av.manual[b.manual.id];
+    else {
+      const n = Number(String(v).replace(',', '.'));
+      const max = av.escala === '5' ? 5 : 20, min = av.escala === '5' ? 1 : 0;
+      if (!isNaN(n)) av.manual[b.manual.id] = Math.max(min, Math.min(max, n));
+    }
+  }
+}
+
 // ---------- resultados ----------
 function csvCampo(v) {
   const s = String(v ?? '');
   return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 function csvSala(sala) {
-  const cab = ['Posição', 'Nome', 'Certas', 'Total perguntas', 'Tempo nas certas (s)', 'Estado'];
+  const escala = sala.aval.escala === '5' ? 'Nível (1 a 5)' : 'Nota (0 a 20)';
+  const cab = ['Posição', 'Nome', escala, 'Percentagem', 'Pontos', 'Cotação total', 'Certas', 'Tempo nas certas (s)', 'Estado'];
   sala.perguntas.forEach((p, i) => cab.push(`P${i + 1} resposta`, `P${i + 1} certa?`));
   const linhas = [cab];
   classificacao(sala).forEach((x, i) => {
+    const av = avaliar(sala, x.a);
     const l = [
-      i + 1, x.a.nome, x.certas, sala.perguntas.length, (x.ms / 1000).toFixed(1).replace('.', ','),
+      i + 1, x.a.nome, virgula(av.nota), virgula(av.pct) + '%', virgula(av.pontos), virgula(av.total),
+      x.certas, (x.ms / 1000).toFixed(1).replace('.', ','),
       sala.modo === 'elim' ? (x.a.eliminado ? `Eliminado na ronda ${x.a.eliminadoRonda}` : 'Em jogo') : 'Terminou',
     ];
     sala.perguntas.forEach((_, qi) => {
       const r = x.a.respostas[qi];
-      l.push(r ? r.r : '', r ? (r.ok ? 'sim' : 'não') : '');
+      l.push(r ? r.r : '', r || sala.aval.correcoes[x.a.id]?.[qi] !== undefined ? (certaFinal(sala, x.a, qi) ? 'sim' : 'não') : '');
     });
     linhas.push(l);
   });
+  const certas = ['', 'Resposta certa', '', '', '', '', '', '', ''];
+  sala.perguntas.forEach((p) => certas.push(p.a.split('|').join(' ou '), ''));
+  linhas.push([], certas);
   return '﻿' + linhas.map((l) => l.map(csvCampo).join(';')).join('\r\n');
 }
 function guardarResultados(sala) {
   try {
-    const data = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-    const nome = `${data}_${sala.titulo.replace(/[^\p{L}\p{N}\-]+/gu, '_')}_${sala.code}.csv`;
-    fs.writeFileSync(path.join(RESULTADOS, nome), csvSala(sala));
+    if (!sala.ficheiro) {
+      const data = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+      sala.ficheiro = `${data}_${sala.titulo.replace(/[^\p{L}\p{N}\-]+/gu, '_')}_${sala.code}.csv`;
+    }
+    fs.writeFileSync(path.join(RESULTADOS, sala.ficheiro), csvSala(sala));
   } catch (e) {
     console.error('Não consegui guardar resultados:', e.message);
   }
@@ -239,6 +314,8 @@ function vistaProf(sala) {
     perguntas: sala.perguntas,
     historico: sala.historico,
     vencedores: sala.vencedores,
+    aval: sala.aval,
+    avaliadas: perguntasAvaliadas(sala),
     alunos: classificacao(sala).map((x) => ({
       id: x.a.id,
       nome: x.a.nome,
@@ -250,6 +327,8 @@ function vistaProf(sala) {
       ms: x.ms,
       respondidas: Object.keys(x.a.respostas).length,
       respostaAtual: qi >= 0 ? x.a.respostas[qi] || null : null,
+      respostas: Object.fromEntries(Object.entries(x.a.respostas).map(([k, v]) => [k, { r: v.r, ok: v.ok }])),
+      avaliacao: avaliar(sala, x.a),
     })),
   };
 }
@@ -455,6 +534,13 @@ const servidor = http.createServer(async (req, res) => {
             if (a) { for (const r of a.clientes) enviar(r, { expulso: true }); sala.alunos.delete(b.id); }
             break;
           }
+          case 'avaliacao':
+            atualizarAval(sala, b);
+            if (sala.estado === 'fim') {
+              clearTimeout(sala.gravarAval);
+              sala.gravarAval = setTimeout(() => guardarResultados(sala), 2000);
+            }
+            break;
           case 'apagar':
             limparTemporizador(sala);
             for (const a of sala.alunos.values()) for (const r of a.clientes) enviar(r, { fechada: true });
