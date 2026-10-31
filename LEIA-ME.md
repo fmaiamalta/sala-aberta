@@ -74,6 +74,6 @@ O GitHub guarda o código, mas não corre a app. Precisas de um alojamento que c
 5. No sítio onde compraste o domínio, cria o registo DNS que o Render indicar (normalmente um `CNAME` de `sala` para `sala-aberta.onrender.com`). O certificado HTTPS é criado sozinho.
 
 Notas:
-- O plano gratuito do Render adormece a app após 15 minutos sem uso e apaga as salas em memória. Para usar em aula, o plano Starter (cerca de 7 dólares por mês) fica sempre ligado.
+- O `render.yaml` começa no plano gratuito. Esse plano adormece a app após 15 minutos sem uso e apaga as salas em memória. Para usar em aula, muda para o plano Starter (cerca de 7 dólares por mês) em **Settings → Instance Type**. Fica sempre ligado.
 - Online, os CSV da pasta `resultados` não ficam guardados de forma permanente. Descarrega os resultados no painel no fim de cada jogo.
 - Sempre que fizeres alterações no GitHub, o Render atualiza a app sozinho. Não o faças durante uma aula: a atualização reinicia o servidor e as salas abertas perdem-se.
