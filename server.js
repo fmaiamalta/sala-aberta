@@ -1,4 +1,4 @@
-// Salas de Jogo: servidor sem dependências (só Node.js 18+).
+// Sala Aberta: servidor sem dependências (só Node.js 18+).
 // Arranque: node server.js   (opcional: PORT=3000 PIN=1234 node server.js)
 
 const http = require('http');
@@ -540,7 +540,7 @@ if (require.main === module) {
   }
   servidor.listen(PORT, '0.0.0.0', () => {
     const ends = ipsLocais();
-    console.log('\n  Salas de Jogo a funcionar.\n');
+    console.log('\n  Sala Aberta a funcionar.\n');
     console.log(`  Professor:  http://localhost:${PORT}/professor`);
     console.log(`  PIN do professor:  ${PIN}\n`);
     console.log('  Alunos (na mesma rede Wi-Fi):');

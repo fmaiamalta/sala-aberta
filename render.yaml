@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: salas-de-jogo
+    name: sala-aberta
     runtime: node
     plan: starter
     buildCommand: "true"

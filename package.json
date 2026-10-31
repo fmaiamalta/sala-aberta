@@ -1,5 +1,5 @@
 {
-  "name": "salas-de-jogo",
+  "name": "sala-aberta",
   "version": "0.1.0",
   "description": "Salas de jogo para a aula: eliminatória e prova cronometrada",
   "main": "server.js",

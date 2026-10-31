@@ -1,4 +1,4 @@
-# Salas de Jogo
+# Sala Aberta
 
 App para a aula com dois modos:
 
@@ -69,9 +69,9 @@ O GitHub guarda o código, mas não corre a app. Precisas de um alojamento que c
 2. **New → Blueprint** e escolhe este repositório. O ficheiro `render.yaml` já tem a configuração.
 3. Preenche as duas variáveis:
    - `PIN`: uma palavra-passe com pelo menos 8 caracteres. Os alunos vão estar na mesma rede que tu, não uses uma fácil.
-   - `PUBLIC_URL`: o endereço final, por exemplo `https://jogo.teudominio.pt`
-4. No serviço criado, vai a **Settings → Custom Domains** e junta `jogo.teudominio.pt`.
-5. No sítio onde compraste o domínio, cria o registo DNS que o Render indicar (normalmente um `CNAME` de `jogo` para `salas-de-jogo.onrender.com`). O certificado HTTPS é criado sozinho.
+   - `PUBLIC_URL`: o endereço final, por exemplo `https://sala.teudominio.pt`
+4. No serviço criado, vai a **Settings → Custom Domains** e junta `sala.teudominio.pt`.
+5. No sítio onde compraste o domínio, cria o registo DNS que o Render indicar (normalmente um `CNAME` de `sala` para `sala-aberta.onrender.com`). O certificado HTTPS é criado sozinho.
 
 Notas:
 - O plano gratuito do Render adormece a app após 15 minutos sem uso e apaga as salas em memória. Para usar em aula, o plano Starter (cerca de 7 dólares por mês) fica sempre ligado.
