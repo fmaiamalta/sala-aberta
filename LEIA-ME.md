@@ -60,3 +60,20 @@ Cada jogo, ao terminar, grava um CSV na pasta `resultados` (abre no Excel). Tamb
 - Os dados vivem na memória do computador. Se fechares a janela do servidor a meio, a sala perde-se (os CSV já gravados ficam).
 - Testado com dezenas de alunos ao mesmo tempo, numa rede local.
 - O QR precisa de internet para aparecer. Sem internet, os alunos escrevem o endereço.
+
+## Pôr online (com o teu domínio)
+
+O GitHub guarda o código, mas não corre a app. Precisas de um alojamento que corra Node.js. Estas instruções usam o Render (render.com), que lê o código diretamente do GitHub.
+
+1. Cria conta em render.com com a tua conta GitHub.
+2. **New → Blueprint** e escolhe este repositório. O ficheiro `render.yaml` já tem a configuração.
+3. Preenche as duas variáveis:
+   - `PIN`: uma palavra-passe com pelo menos 8 caracteres. Os alunos vão estar na mesma rede que tu, não uses uma fácil.
+   - `PUBLIC_URL`: o endereço final, por exemplo `https://jogo.teudominio.pt`
+4. No serviço criado, vai a **Settings → Custom Domains** e junta `jogo.teudominio.pt`.
+5. No sítio onde compraste o domínio, cria o registo DNS que o Render indicar (normalmente um `CNAME` de `jogo` para `salas-de-jogo.onrender.com`). O certificado HTTPS é criado sozinho.
+
+Notas:
+- O plano gratuito do Render adormece a app após 15 minutos sem uso e apaga as salas em memória. Para usar em aula, o plano Starter (cerca de 7 dólares por mês) fica sempre ligado.
+- Online, os CSV da pasta `resultados` não ficam guardados de forma permanente. Descarrega os resultados no painel no fim de cada jogo.
+- Sempre que fizeres alterações no GitHub, o Render atualiza a app sozinho. Não o faças durante uma aula: a atualização reinicia o servidor e as salas abertas perdem-se.
