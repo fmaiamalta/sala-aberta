@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const P = require('./percurso');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PIN = (process.env.PIN || '').trim() || String(Math.floor(1000 + Math.random() * 9000));
@@ -76,7 +77,7 @@ function criarSala({ titulo, modo, perguntas, vidas, continuarEliminados, duraca
   const sala = {
     code: novoCodigo(),
     titulo: String(titulo || 'Sala').slice(0, 80),
-    modo: modo === 'prova' ? 'prova' : 'elim',
+    modo: ['prova', 'percurso'].includes(modo) ? modo : 'elim',
     perguntas: perguntas.map((p) => ({
       q: String(p.q).slice(0, 500),
       a: String(p.a).slice(0, 200),
@@ -106,6 +107,8 @@ function criarSala({ titulo, modo, perguntas, vidas, continuarEliminados, duraca
     vencedores: [],
     criadaEm: now(),
     clientesProf: new Set(),
+    clientesProj: new Set(), // ecrãs de projeção
+    tokenProj: rid(), // dá acesso só de leitura à projeção (sem PIN)
     temporizador: null,
   };
   salas.set(sala.code, sala);
@@ -139,6 +142,7 @@ function pontuacao(sala, a) {
 }
 
 function classificacao(sala) {
+  if (sala.modo === 'percurso') return P.classificar(sala).map((a) => ({ a, certas: 0, ms: 0 }));
   return [...sala.alunos.values()]
     .map((a) => ({ a, ...pontuacao(sala, a) }))
     .sort((x, y) =>
@@ -214,6 +218,9 @@ function terminar(sala) {
       const top = vivos[0];
       sala.vencedores = vivos.filter((x) => x.certas === top.certas && x.ms === top.ms).map((x) => x.a.nome);
     } else sala.vencedores = [];
+  } else if (sala.modo === 'percurso') {
+    const top = cl[0];
+    sala.vencedores = top && top.a.g.tempos.length ? [top.a.nome] : [];
   } else sala.vencedores = [];
   guardarResultados(sala);
   difundir(sala);
@@ -313,6 +320,7 @@ function csvCampo(v) {
   return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 function csvSala(sala) {
+  if (sala.modo === 'percurso') return '\ufeff' + P.linhasCsv(sala).map((l) => l.map(csvCampo).join(';')).join('\r\n');
   const escala = sala.aval.escala === '5' ? 'Nível (1 a 5)' : 'Nota (0 a 20)';
   const cab = ['Posição', 'Nome', escala, 'Menção', 'Percentagem', 'Pontos', 'Cotação total', 'Certas', 'Tempo nas certas (s)', 'Estado'];
   sala.perguntas.forEach((p, i) => cab.push(`P${i + 1} resposta`, `P${i + 1} certa?`));
@@ -384,8 +392,23 @@ function vistaProf(sala) {
       respostaAtual: qi >= 0 ? x.a.respostas[qi] || null : null,
       respostas: Object.fromEntries(Object.entries(x.a.respostas).map(([k, v]) => [k, { r: v.r, ok: v.ok }])),
       avaliacao: avaliar(sala, x.a),
+      grupo: sala.modo === 'percurso' ? P.resumo(sala, x.a) : null,
     })),
+    percurso: sala.modo === 'percurso' ? { ...P.vistaMapa(sala), missoes: sala.percurso.missoes.map((m) => ({ titulo: m.titulo, caminho: m.caminho })) } : null,
+    tokenProj: sala.tokenProj,
   };
+}
+
+// Ecrã de projeção: só o que a turma pode ver (sem PIN, sem códigos, sem respostas)
+function vistaProj(sala) {
+  const v = { agora: now(), titulo: sala.titulo, modo: sala.modo, estado: sala.estado, code: sala.code, vencedores: sala.vencedores };
+  if (sala.modo === 'percurso') {
+    v.mapa = P.vistaMapa(sala);
+    v.grupos = P.classificar(sala).map((a) => ({ nome: a.nome, online: a.clientes.size > 0, aberto: a.aberto, ...P.resumo(sala, a) }));
+  } else {
+    v.alunos = sala.alunos.size;
+  }
+  return v;
 }
 
 function vistaAluno(sala, a) {
@@ -418,6 +441,10 @@ function vistaAluno(sala, a) {
         base.ronda = sala.historico[sala.historico.length - 1] || null;
       }
     }
+  } else if (sala.modo === 'percurso') {
+    base.mapa = P.vistaMapa(sala);
+    base.grupo = P.resumo(sala, a);
+    base.msg = a.g.msg;
   } else {
     if (sala.estado === 'aberta' && a.aberto) {
       base.perguntas = sala.perguntas.map((p) => ({ q: p.q, o: p.o }));
@@ -441,6 +468,10 @@ function enviar(res, dados) {
 function difundir(sala) {
   const vp = vistaProf(sala);
   for (const res of sala.clientesProf) enviar(res, vp);
+  if (sala.clientesProj.size) {
+    const vj = vistaProj(sala);
+    for (const res of sala.clientesProj) enviar(res, vj);
+  }
   for (const a of sala.alunos.values()) {
     if (!a.clientes.size) continue;
     const va = vistaAluno(sala, a);
@@ -473,10 +504,10 @@ function json(res, codigo, obj) {
   res.writeHead(codigo, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(obj));
 }
-function lerCorpo(req) {
+function lerCorpo(req, max = 2e6) {
   return new Promise((ok, falha) => {
     let s = '';
-    req.on('data', (c) => { s += c; if (s.length > 2e6) { falha(new Error('grande')); req.destroy(); } });
+    req.on('data', (c) => { s += c; if (s.length > max) { falha(new Error('grande')); req.destroy(); } });
     req.on('end', () => { try { ok(s ? JSON.parse(s) : {}); } catch (e) { falha(e); } });
   });
 }
@@ -516,6 +547,22 @@ const servidor = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/saude') return json(res, 200, { ok: true, salas: salas.size });
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/aluno')) return servirFicheiro(res, 'aluno.html');
     if (req.method === 'GET' && url.pathname === '/professor') return servirFicheiro(res, 'professor.html');
+    if (req.method === 'GET' && url.pathname === '/projetar') return servirFicheiro(res, 'projetar.html');
+    if (req.method === 'GET' && partes[0] === 'api' && partes[1] === 'proj' && partes[3] === 'eventos') {
+      const sala = salas.get(partes[2]);
+      if (!sala || url.searchParams.get('t') !== sala.tokenProj) return json(res, 404, { erro: 'Projeção não encontrada.' });
+      abrirSSE(req, res, () => sala.clientesProj.delete(res));
+      sala.clientesProj.add(res);
+      enviar(res, vistaProj(sala));
+      return;
+    }
+    if (req.method === 'GET' && url.pathname === '/cartoes') {
+      if (!pinOk(req, url)) return setTimeout(() => json(res, 401, { erro: 'PIN errado' }), 1000);
+      const sala = salas.get(url.searchParams.get('s') || '');
+      if (!sala || sala.modo !== 'percurso') return json(res, 404, { erro: 'Sala não existe' });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(P.htmlCartoes(sala));
+    }
     if (req.method === 'GET' && partes[0] === 'static') return servirFicheiro(res, partes.slice(1).join('/'));
     if (req.method === 'GET' && partes[0] === 'exemplos' && partes[1]) {
       const p = path.join(__dirname, 'exemplos', path.basename(partes[1]));
@@ -538,7 +585,12 @@ const servidor = http.createServer(async (req, res) => {
         });
       }
       if (req.method === 'POST' && partes[2] === 'salas') {
-        const b = await lerCorpo(req);
+        const b = await lerCorpo(req, 8e6);
+        if (b.modo === 'percurso') {
+          const sala = criarSala({ ...b, perguntas: [] });
+          try { P.preparar(sala, b); } catch (e) { salas.delete(sala.code); return json(res, 400, { erro: e.message }); }
+          return json(res, 200, { code: sala.code });
+        }
         if (!Array.isArray(b.perguntas) || !b.perguntas.length) return json(res, 400, { erro: 'Sem perguntas' });
         const sala = criarSala(b);
         return json(res, 200, { code: sala.code });
@@ -565,7 +617,9 @@ const servidor = http.createServer(async (req, res) => {
           case 'iniciar': // começa o jogo / abre a prova
             if (sala.estado !== 'espera') break;
             for (const a of sala.alunos.values()) a.vidas = sala.vidas;
-            if (sala.modo === 'elim') abrirPergunta(sala, 0); else abrirProva(sala);
+            if (sala.modo === 'elim') abrirPergunta(sala, 0);
+            else if (sala.modo === 'percurso') P.iniciar(sala);
+            else abrirProva(sala);
             break;
           case 'proxima':
             if (sala.modo === 'elim' && sala.estado === 'resultado' && sala.atual < sala.perguntas.length - 1) abrirPergunta(sala, sala.atual + 1);
@@ -647,19 +701,47 @@ const servidor = http.createServer(async (req, res) => {
         if (b.id && sala.alunos.has(b.id)) return json(res, 200, { id: b.id });
         const nome = String(b.nome || '').trim();
         if (!nome) return json(res, 400, { erro: 'Escreve o teu nome.' });
-        const tardeProva = sala.modo === 'prova' && sala.estado === 'aberta';
+        const tardeProva = (sala.modo === 'prova' && sala.estado === 'aberta') || (sala.modo === 'percurso' && sala.estado === 'percurso');
         if (sala.estado !== 'espera' && !tardeProva) return json(res, 403, { erro: 'O jogo já começou. Fala com o professor.' });
         if ([...sala.alunos.values()].some((a) => normalizar(a.nome) === normalizar(nome)))
           return json(res, 409, { erro: 'Já há alguém com esse nome. Junta a inicial do apelido.' });
         const a = novoAluno(nome);
         a.vidas = sala.vidas;
         a.aberto = !sala.comVez;
+        if (sala.modo === 'percurso') {
+          a.slot = P.slotLivre(sala);
+          if (a.slot < 0) return json(res, 403, { erro: `A sala está cheia: só há ${sala.percurso.nGrupos} grupos.` });
+          P.novoGrupo(sala, a);
+          if (sala.estado === 'percurso') P.comecarMissao(sala, a);
+        }
         sala.alunos.set(a.id, a);
         difundir(sala);
         return json(res, 200, { id: a.id });
       }
       const a = sala.alunos.get(url.searchParams.get('id') || '');
       if (req.method === 'GET' && partes[3] === 'existe') return json(res, a ? 200 : 404, { ok: !!a });
+      if (req.method === 'GET' && partes[3] === 'mapa' && sala.modo === 'percurso') {
+        const img = P.imagemMapa(sala);
+        if (!img) return json(res, 404, { erro: 'Sem imagem' });
+        res.writeHead(200, { 'Content-Type': img.tipo, 'Cache-Control': 'private, max-age=3600' });
+        return res.end(img.dados);
+      }
+      if (req.method === 'POST' && sala.modo === 'percurso' && (partes[3] === 'codigo' || partes[3] === 'proxima')) {
+        const b = await lerCorpo(req);
+        const al = sala.alunos.get(b.id);
+        if (!al) return json(res, 404, { erro: 'Não estás inscrito.' });
+        if (!al.aberto) return json(res, 403, { erro: 'Aguarda a tua vez.' });
+        if (partes[3] === 'proxima') {
+          if (sala.estado !== 'percurso') return json(res, 409, { erro: 'O percurso terminou.' });
+          P.proximaMissao(sala, al);
+          difundir(sala);
+          return json(res, 200, { ok: true });
+        }
+        const r = P.submeter(sala, al, b.codigo);
+        if (r.erro) return json(res, 409, { erro: r.erro });
+        if (P.todosTerminaram(sala)) terminar(sala); else difundir(sala);
+        return json(res, 200, { ok: r.ok });
+      }
       if (req.method === 'GET' && partes[3] === 'eventos') {
         if (!a) return json(res, 404, { erro: 'Não estás inscrito nesta sala.' });
         abrirSSE(req, res, () => { a.clientes.delete(res); difundir(sala); });

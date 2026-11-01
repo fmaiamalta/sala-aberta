@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sala Aberta</title>
 <link rel="stylesheet" href="/static/style.css">
+<script src="/static/mapa.js"></script>
 </head>
 <body>
 <div class="wrap narrow">
@@ -119,11 +120,13 @@ function desenhar() {
   const corpo = $('#jCorpo');
 
   // evita redesenhar (e apagar o que o aluno está a escrever) quando nada de relevante mudou
-  const chave = JSON.stringify([s.aberto, s.nome, s.estado, s.atual, s.minhaResposta, s.eliminado, s.vidas, s.certa, s.vencedores, s.posicao, s.perguntas && s.perguntas.length, s.modo === 'prova' ? null : s.emJogo]);
+  const g = s.grupo || {};
+  const chave = JSON.stringify([g.estado, g.passo, g.missao, g.bloqueadoAte, s.msg, s.aberto, s.nome, s.estado, s.atual, s.minhaResposta, s.eliminado, s.vidas, s.certa, s.vencedores, s.posicao, s.perguntas && s.perguntas.length, s.modo === 'prova' ? null : s.emJogo]);
   if (chave === ultimaChave && !(s.estado === 'espera')) { tique(); return; }
   ultimaChave = chave;
 
-  if (s.estado === 'espera') {
+  if (s.modo === 'percurso') desenharPercurso(corpo);
+  else if (s.estado === 'espera') {
     corpo.innerHTML = `<h2>Estás dentro.</h2><p>Espera que o professor comece.${s.aberto ? '' : ' Vais responder quando ele te der a vez.'}</p><p class="muted small">${s.inscritos} ${s.inscritos === 1 ? 'aluno na sala' : 'alunos na sala'}.</p>`;
   } else if (s.estado === 'fim') {
     if (s.modo === 'elim') {
@@ -235,7 +238,80 @@ function desenharProva(corpo) {
   });
 }
 
+// ---------- percurso ----------
+const mmss = (ms) => { const t = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+function desenharPercurso(corpo) {
+  const g = s.grupo, est = s.mapa.estacoes;
+  const chip = `<span class="chip"><i style="background:${g.cor}"></i>Grupo ${esc(g.corNome)}</span>`;
+  const mapa = '<div id="pMapaAluno" style="margin-top:12px"></div>';
+  const msg = s.msg ? `<div class="msg ${s.msg.tipo}">${esc(s.msg.texto)}</div>` : '';
+  let h;
+  if (s.estado === 'espera') {
+    h = `${chip}<h2 style="margin-top:10px">Estão dentro.</h2>
+      <p>Escolham quem <b>guia</b> (fica com este aparelho) e quem <b>caminha</b> (vai às estações, sem aparelho).</p>
+      <p class="muted small">Nos cartões das estações, o caminhante lê só o código da cor <b>${esc(g.corNome)}</b>.</p>`;
+  } else if (s.estado === 'fim') {
+    const ganhei = s.vencedores.includes(s.nome);
+    h = `${chip}<div class="result-big">${ganhei ? 'Ganharam!' : `${s.posicao}.º lugar`}</div>
+      <p>${g.concluidas} de ${g.missoes} missões · ${mmss(g.tempoTotal)} · ${g.erros} ${g.erros === 1 ? 'erro' : 'erros'}</p>`;
+  } else if (!s.aberto) {
+    h = `${chip}<div class="result-big">Aguarda a tua vez</div><p>O professor vai dar-vos a vez.</p>`;
+  } else if (g.estado === 'entre') {
+    h = `${chip}${msg}<div class="result-big">Missão ${g.missao} concluída</div>
+      <p>Tempo: <b>${mmss(g.tempos[g.tempos.length - 1])}</b></p>
+      <p><b>Troquem de papéis:</b> quem caminhou passa a guiar.</p>
+      <button class="big" id="bProx" style="width:100%">Começar a missão ${g.missao + 1}</button>`;
+  } else if (g.estado === 'terminou') {
+    h = `${chip}${msg}<div class="result-big">Terminaram!</div>
+      <p>${g.missoes} missões em <b>${mmss(g.tempoTotal)}</b>, com ${g.erros} ${g.erros === 1 ? 'erro' : 'erros'}.</p>
+      <p class="muted">Esperem pelos outros grupos.</p>`;
+  } else {
+    const feitas = g.trilho.map((i) => esc(est[i].nome)).join(' → ');
+    h = `${chip}<p class="muted small" style="margin:8px 0 0">Missão ${g.missao}/${g.missoes} · ${esc(g.titulo)} · estação ${g.passo + 1} de ${g.passos}</p>
+      <p class="small" style="margin:4px 0 0">Estão em <b>${esc(est[g.pos].nome)}</b>. Próximo destino:</p>
+      <div class="destino">${esc(est[g.alvo].nome)}</div>
+      <p class="small">Guia o teu colega até lá. Quando ele voltar, escreve o código da cor <b>${esc(g.corNome)}</b>.</p>
+      ${msg}
+      <form id="fCod" class="row" style="flex-wrap:nowrap">
+        <input id="cod" class="codigo-in grow" maxlength="3" autocomplete="off" autocapitalize="characters" placeholder="K7">
+        <button class="big">OK</button>
+      </form>
+      <p class="small" id="espera" style="margin-top:8px"></p>
+      <p class="muted small">Percurso: ${feitas} → ?</p>`;
+  }
+  corpo.innerHTML = h + (s.estado !== 'espera' ? mapa : '');
+  const el = $('#pMapaAluno');
+  if (el) desenharMapa(el, { url: s.mapa.mapaUrl, estacoes: est, grupos: [{ ...g, nome: s.nome }], atual: g.pos, alvo: g.alvo });
+  const bp = $('#bProx');
+  if (bp) bp.onclick = async () => { bp.disabled = true; await enviarPercurso('proxima', {}); };
+  const f = $('#fCod');
+  if (f) {
+    if (g.bloqueadoAte <= Date.now() + offset) $('#cod').focus();
+    f.onsubmit = async (e) => { e.preventDefault(); const c = $('#cod').value.trim(); if (c) await enviarPercurso('codigo', { codigo: c }); };
+  }
+}
+async function enviarPercurso(rota, corpo) {
+  try {
+    const r = await fetch(`/api/sala/${code}/${rota}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...corpo }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { const el = $('#espera'); if (el) el.textContent = j.erro || 'Erro'; }
+  } catch { const el = $('#espera'); if (el) el.textContent = 'Sem ligação. Tenta outra vez.'; }
+}
+
 function tique() {
+  if (s && s.modo === 'percurso' && s.grupo) {
+    const falta = s.grupo.bloqueadoAte - (Date.now() + offset);
+    const inp = $('#cod'), el = $('#espera');
+    if (inp) {
+      const bloq = falta > 0;
+      if (inp.disabled !== bloq) { inp.disabled = bloq; $('#fCod button').disabled = bloq; if (!bloq) inp.focus(); }
+      if (el) el.textContent = bloq ? `Esperem ${Math.ceil(falta / 1000)} s.` : '';
+    }
+    const t = $('#jTimer');
+    t.textContent = s.grupo.estado === 'missao' && s.grupo.inicio ? mmss(Date.now() + offset - s.grupo.inicio) : '';
+    t.classList.remove('low');
+    return;
+  }
   const t = $('#jTimer');
   if (!s || !s.prazo) { t.textContent = ''; return; }
   const rest = Math.max(0, Math.ceil((s.prazo - (Date.now() + offset)) / 1000));

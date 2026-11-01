@@ -4,6 +4,7 @@ App para a aula com dois modos:
 
 - **Eliminatória:** uma pergunta de cada vez, com tempo. Quem erra sai. Ganha o último.
 - **Prova cronometrada:** todas as perguntas ao mesmo tempo. Fecha quando o tempo acabar.
+- **Percurso:** em cada grupo, um aluno guia (com o aparelho) e outro caminha até às estações. Serve para a motherboard, para os caminhos marítimos ou para qualquer mapa ou esquema.
 
 Funciona no teu computador. Os alunos entram pelo browser, no telemóvel ou nos computadores da sala. Não precisam de instalar nada.
 
@@ -50,6 +51,30 @@ Podes preparar as perguntas no Excel com 4 colunas e colar na caixa de texto, ou
 - Podes dar 1, 2, 3 ou 5 vidas.
 - Opção "eliminados continuam a responder": treinam, mas não contam para o vencedor.
 - Se as perguntas acabarem com mais de um aluno em jogo, ganha quem acertou mais. Em empate, quem respondeu mais depressa.
+
+## Percurso
+
+**Preparar**
+1. Em "Nova sala", escolhe **Percurso**.
+2. Escolhe um mapa: um dos exemplos (Motherboard, Descobrimentos) ou uma imagem tua (foto do quadro, mapa, esquema).
+3. Clica no mapa para marcar as estações e dá-lhes nomes. Clica numa estação para mudar o nome ou a apagar.
+4. Escreve as missões, uma por linha: `Vasco da Gama, 1497: Lisboa > Cabo Verde > Cabo da Boa Esperança > Calecute`. A primeira estação é o ponto de partida.
+5. Escolhe quantos grupos vão jogar (2 a 8). Cada grupo tem uma cor.
+6. Abre a sala e carrega em **Imprimir cartões**. Sai um cartão por estação, com um código diferente para cada cor.
+
+**Os cartões**
+- Recorta, dobra cada cartão para trás pela linha do meio (o nome fica à frente, os códigos atrás) e cola só pela parte de cima: em cima do mapa projetado, ou na mesa do grupo que faz de componente.
+- O caminhante levanta o cartão e lê só a linha da sua cor.
+- Os códigos são novos em cada sala. Se um grupo ouvir o código de outro, não lhe serve.
+
+**Jogar**
+- Cada grupo entra com um aparelho (o do navegador). O caminhante não leva nada.
+- O navegador vê o destino e guia o colega por palavras. Quando o colega volta com o código, o navegador escreve-o.
+- Código certo: o grupo avança. Código de outra estação: espera 15 segundos. Código de outra cor ou que não existe: espera 5 segundos.
+- No fim de cada missão, os dois trocam de papéis. Cada grupo começa numa missão diferente, para não irem todos à mesma estação.
+- **Projetar no quadro** abre um ecrã com o mapa, os pontos dos grupos a andar e a classificação. Não mostra códigos. No canto há um botão para esconder os nomes das estações.
+
+O controlo da vez também funciona aqui: um grupo fechado não consegue enviar códigos.
 
 ## Dar a vez (postos)
 

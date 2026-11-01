@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sala Aberta · Projeção</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/mapa.js"></script>
+<style>
+  body { background: #11151b; color: #eef1f4; }
+  .proj { display: grid; grid-template-columns: 1fr 330px; gap: 18px; padding: 18px; min-height: 100vh; }
+  @media (max-width: 900px) { .proj { grid-template-columns: 1fr; } }
+  .topo { display: flex; align-items: baseline; gap: 14px; margin-bottom: 10px; }
+  .topo h1 { font-size: 1.7rem; margin: 0; flex: 1; }
+  .relogio { font: 800 2.2rem system-ui; font-variant-numeric: tabular-nums; }
+  .lado { background: #1b2129; border-radius: 14px; padding: 16px; align-self: start; }
+  .lado h2 { font-size: 1rem; color: #9aa6b4; text-transform: uppercase; letter-spacing: .08em; margin: 0 0 10px; }
+  .g { display: grid; grid-template-columns: 30px 1fr auto; gap: 4px 10px; align-items: center; padding: 10px 0; border-top: 1px solid #2a323d; }
+  .g .bola { width: 30px; height: 30px; border-radius: 50%; color: #fff; font: 800 15px/30px system-ui; text-align: center; grid-row: span 2; }
+  .g .nm { font-weight: 800; font-size: 1.1rem; }
+  .g .det { color: #aeb8c4; font-size: .9rem; grid-column: 2 / 4; }
+  .g .t { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .barra { height: 6px; background: #2a323d; border-radius: 3px; overflow: hidden; grid-column: 2 / 4; }
+  .barra i { display: block; height: 100%; }
+  .espera { text-align: center; padding: 30px 10px; }
+  .espera .code { font-size: 4.5rem; font-weight: 800; letter-spacing: .15em; }
+  .ctrl { position: fixed; right: 12px; bottom: 12px; display: flex; gap: 8px; opacity: .35; }
+  .ctrl:hover { opacity: 1; }
+  .ctrl button { background: #2a323d; color: #eef1f4; font-size: .85rem; padding: 6px 12px; }
+  .vencedor { font-size: 1.6rem; font-weight: 800; color: #f3c46b; margin: 6px 0 12px; }
+  #qr svg { background: #fff; border-radius: 8px; width: 170px; height: 170px; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+</head>
+<body>
+<div class="proj">
+  <div>
+    <div class="topo"><h1 id="titulo">Sala Aberta</h1><div class="relogio" id="relogio"></div></div>
+    <div id="mapa"></div>
+    <div id="semMapa" class="espera hidden"></div>
+  </div>
+  <div class="lado">
+    <div id="entrar" class="espera hidden">
+      <div style="color:#9aa6b4">Entra em</div>
+      <div style="font-size:1.3rem;font-weight:700" id="endereco"></div>
+      <div style="color:#9aa6b4;margin-top:10px">com o código</div>
+      <div class="code" id="code"></div>
+      <div id="qr" style="margin-top:10px"></div>
+    </div>
+    <div id="vencedor" class="vencedor hidden"></div>
+    <h2 id="tituloLista">Grupos</h2>
+    <div id="lista"></div>
+  </div>
+</div>
+<div class="ctrl">
+  <button id="bNomes" type="button">Esconder nomes</button>
+  <button id="bEcra" type="button">Ecrã inteiro</button>
+</div>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const q = new URLSearchParams(location.search);
+const code = q.get('s'), token = q.get('t');
+let v = null, offset = 0, nomes = true;
+try { nomes = localStorage.getItem('projNomes') !== '0'; } catch {}
+const mmss = (ms) => { const t = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+
+function ligar() {
+  const f = new EventSource(`/api/proj/${code}/eventos?t=${encodeURIComponent(token)}`);
+  f.onmessage = (e) => { v = JSON.parse(e.data); offset = v.agora - Date.now(); desenhar(); };
+  f.onerror = () => { $('#relogio').textContent = '…'; };
+}
+function desenhar() {
+  $('#titulo').textContent = v.titulo;
+  const espera = v.estado === 'espera';
+  $('#entrar').classList.toggle('hidden', !espera);
+  if (espera) {
+    $('#code').textContent = v.code;
+    $('#endereco').textContent = location.host;
+    if (window.qrcode && !$('#qr').innerHTML) { const c = qrcode(0, 'M'); c.addData(`${location.origin}/?sala=${v.code}`); c.make(); $('#qr').innerHTML = c.createSvgTag({ cellSize: 5, margin: 2 }); }
+  }
+  if (v.modo !== 'percurso') {
+    $('#semMapa').classList.remove('hidden');
+    $('#semMapa').innerHTML = `<div style="font-size:1.4rem">${v.alunos} alunos na sala</div>`;
+    return;
+  }
+  const grupos = v.grupos || [];
+  desenharMapa($('#mapa'), { url: v.mapa.mapaUrl, estacoes: v.mapa.estacoes, grupos, nomes });
+  $('#tituloLista').textContent = v.estado === 'fim' ? 'Classificação final' : 'Grupos';
+  $('#vencedor').classList.toggle('hidden', !(v.estado === 'fim' && v.vencedores.length));
+  $('#vencedor').textContent = v.vencedores.length ? `Ganha: ${v.vencedores.join(', ')}` : '';
+  $('#lista').innerHTML = grupos.length ? grupos.map((g, i) => {
+    const feito = g.concluidas + (g.estado === 'missao' ? g.passo / g.passos : 0);
+    const pct = Math.round(feito / g.missoes * 100);
+    let det;
+    if (v.estado === 'espera') det = 'pronto';
+    else if (g.estado === 'terminou') det = `terminou · ${g.erros} ${g.erros === 1 ? 'erro' : 'erros'}`;
+    else if (g.estado === 'entre') det = `missão ${g.missao} feita · a trocar de papéis`;
+    else det = `missão ${g.missao}/${g.missoes} · estação ${g.passo}/${g.passos} · ${g.erros} ${g.erros === 1 ? 'erro' : 'erros'}`;
+    return `<div class="g"><div class="bola" style="background:${g.cor}">${g.slot + 1}</div>
+      <div class="nm">${v.estado === 'fim' ? (i + 1) + '.º ' : ''}${esc(g.nome)}</div><div class="t">${g.estado === 'terminou' ? mmss(g.tempoTotal) : ''}</div>
+      <div class="det">${det}${g.aberto ? '' : ' · <b>sem a vez</b>'}</div>
+      <div class="barra"><i style="width:${pct}%;background:${g.cor}"></i></div></div>`;
+  }).join('') : '<p style="color:#9aa6b4">À espera dos grupos.</p>';
+  tique();
+}
+function tique() {
+  if (!v || v.modo !== 'percurso') return;
+  const ini = v.mapa.inicioPercurso;
+  $('#relogio').textContent = v.estado === 'percurso' && ini ? mmss(Date.now() + offset - ini) : (v.estado === 'fim' ? 'Fim' : '');
+}
+setInterval(tique, 500);
+$('#bNomes').onclick = () => { nomes = !nomes; try { localStorage.setItem('projNomes', nomes ? '1' : '0'); } catch {} $('#bNomes').textContent = nomes ? 'Esconder nomes' : 'Mostrar nomes'; if (v) desenhar(); };
+$('#bNomes').textContent = nomes ? 'Esconder nomes' : 'Mostrar nomes';
+$('#bEcra').onclick = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {});
+if (code && token) ligar(); else document.body.innerHTML = '<p style="padding:30px">Abre a projeção a partir do painel do professor.</p>';
+</script>
+</body>
+</html>
