@@ -2,6 +2,7 @@ services:
   - type: web
     name: sala-aberta
     runtime: node
+    region: frankfurt
     plan: free
     buildCommand: "true"
     startCommand: node server.js
