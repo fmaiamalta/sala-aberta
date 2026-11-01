@@ -24,95 +24,138 @@
 
   <!-- CRIAR SALA -->
   <section id="vCriar" class="hidden">
-    <div class="row" style="margin-bottom:14px">
-      <div class="grow"><h1>Nova sala</h1><p class="muted">Prepara as perguntas, escolhe o modo e abre a sala.</p></div>
+
+    <!-- Passo 0: escolher o que fazer -->
+    <div id="passo0">
+      <h1 style="margin-bottom:6px">O que queres fazer hoje?</h1>
+      <p class="muted" style="margin-bottom:18px">Escolhe uma opção. Depois a app guia-te passo a passo.</p>
+      <div class="modos">
+        <button type="button" class="modo" data-modo="elim">
+          <span class="modo-t">Jogo de perguntas</span>
+          <span class="modo-d">Uma pergunta de cada vez, com tempo. Quem erra sai, até sobrar um vencedor.</span>
+          <span class="modo-e">Ex.: tabuada, datas, vocabulário</span>
+        </button>
+        <button type="button" class="modo" data-modo="prova">
+          <span class="modo-t">Teste com tempo</span>
+          <span class="modo-d">Todas as perguntas de uma vez. Fecha quando o tempo acaba. Dá nota no fim.</span>
+          <span class="modo-e">Ex.: ficha de avaliação de 20 minutos</span>
+        </button>
+        <button type="button" class="modo" data-modo="percurso">
+          <span class="modo-t">Percurso na sala</span>
+          <span class="modo-d">Um aluno guia, o colega anda até às estações. Num mapa projetado ou nas mesas.</span>
+          <span class="modo-e">Ex.: caminhos marítimos, motherboard</span>
+        </button>
+      </div>
+      <div id="salasExistentes" class="card hidden" style="margin-top:22px">
+        <h2>As tuas salas abertas</h2>
+        <div id="listaSalas"></div>
+      </div>
     </div>
 
-    <div id="salasExistentes" class="card hidden">
-      <h2>Salas abertas</h2>
-      <div id="listaSalas"></div>
-    </div>
+    <!-- Passos seguintes -->
+    <form id="fCriar" class="hidden" novalidate>
+      <div class="row" style="margin-bottom:6px">
+        <button type="button" class="sec" id="bInicio">← Início</button>
+        <h1 class="grow" id="tituloModo" style="margin:0"></h1>
+      </div>
+      <ol class="passos" id="passosNav"></ol>
+      <div class="hidden">
+        <input type="radio" name="modo" value="elim" checked>
+        <input type="radio" name="modo" value="prova">
+        <input type="radio" name="modo" value="percurso">
+      </div>
 
-    <form id="fCriar">
-      <div class="card">
-        <label for="titulo">Nome da sala</label>
-        <input id="titulo" type="text" placeholder="Ex.: 7.ºB Matemática, potências" required>
-
-        <label>Modo</label>
-        <div class="choice">
-          <label><input type="radio" name="modo" value="elim" checked> <b>Eliminatória</b><br><span class="muted small">Uma pergunta de cada vez, com tempo. Quem erra sai.</span></label>
-          <label><input type="radio" name="modo" value="prova"> <b>Prova cronometrada</b><br><span class="muted small">Todas as perguntas ao mesmo tempo. Fecha quando o tempo acabar.</span></label>
-          <label><input type="radio" name="modo" value="percurso"> <b>Percurso</b><br><span class="muted small">Um navegador guia o colega de estação em estação, num mapa ou na sala.</span></label>
+      <!-- perguntas (jogo e teste) -->
+      <div class="card passo" data-passo="perguntas" id="cardPerguntas">
+        <h2>Escreve ou cola as perguntas</h2>
+        <p class="small">Uma pergunta por linha, com a resposta depois de um ponto e vírgula:</p>
+        <pre class="exemplo-linha">Quanto é 7 × 8?;56
+Capital de França?;Paris</pre>
+        <div class="row" style="margin:10px 0">
+          <select id="exemplo" style="width:auto"><option value="">Usar um exemplo pronto…</option></select>
+          <label class="botao-ficheiro">Carregar ficheiro (Excel em CSV)<input id="ficheiro" type="file" accept=".csv,.txt,.tsv" hidden></label>
         </div>
+        <textarea id="perguntas" placeholder="Quanto é 7 × 8?;56&#10;Capital de França?;Paris"></textarea>
+        <p id="resumo" class="small" style="margin-top:8px"></p>
+        <div id="previa"></div>
+        <details class="ajuda">
+          <summary>Escolha múltipla, tempo e outras dicas</summary>
+          <ul class="small">
+            <li><b>Tempo:</b> junta os segundos depois da resposta: <code>Quanto é 7 × 8?;56;30</code>. Sem isso, cada pergunta tem 60 segundos.</li>
+            <li><b>Escolha múltipla:</b> junta as opções no fim, separadas por <code>|</code>: <code>Capital de França?;Paris;20;Madrid|Paris|Roma</code></li>
+            <li><b>Várias respostas certas:</b> separa-as por <code>|</code>: <code>Metade de 1?;0,5|1/2</code></li>
+            <li><b>Excel:</b> 4 colunas (pergunta, resposta, segundos, opções). Seleciona, copia e cola aqui.</li>
+            <li>Maiúsculas e acentos não contam. <code>0,5</code> e <code>0.5</code> contam igual.</li>
+          </ul>
+        </details>
+      </div>
 
-        <div id="optElim" class="grid2">
-          <div>
-            <label for="vidas">Vidas por aluno</label>
+      <!-- mapa (percurso) -->
+      <div class="card passo" data-passo="mapa" id="cardPercurso">
+        <h2>Escolhe o mapa</h2>
+        <div class="modos pequenos">
+          <button type="button" class="modo" data-mapa="motherboard"><span class="modo-t">Motherboard</span><span class="modo-d">Os componentes de um computador</span></button>
+          <button type="button" class="modo" data-mapa="descobrimentos"><span class="modo-t">Descobrimentos</span><span class="modo-d">Os caminhos marítimos portugueses</span></button>
+          <button type="button" class="modo" data-mapa="imagem"><span class="modo-t">A minha imagem</span><span class="modo-d">Uma foto, um mapa ou um esquema teu</span></button>
+        </div>
+        <input id="pFicheiro" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+        <p class="small" style="margin-top:14px" id="pAjuda"><b>Clica no mapa</b> para juntar uma estação. Clica numa estação para lhe mudar o nome ou a apagar.</p>
+        <div id="pMapa" class="mapa-edit"></div>
+        <p class="small" id="pEstacoes" style="margin-top:8px"></p>
+      </div>
+
+      <!-- missões (percurso) -->
+      <div class="card passo" data-passo="missoes">
+        <h2>Escreve as missões</h2>
+        <p class="small">Uma missão por linha. Primeiro o nome, depois as estações por ordem, separadas por <b>&gt;</b>:</p>
+        <pre class="exemplo-linha">Vasco da Gama: Lisboa > Cabo Verde > Calecute</pre>
+        <p class="muted small">A primeira estação é o ponto de partida. Cada grupo começa numa missão diferente.</p>
+        <textarea id="pMissoes" style="min-height:120px"></textarea>
+        <div id="pErros"></div>
+      </div>
+
+      <!-- final (todos) -->
+      <div class="card passo" data-passo="final">
+        <h2>Últimos pormenores</h2>
+        <label for="titulo">Nome da sala</label>
+        <input id="titulo" type="text" placeholder="Ex.: 7.ºB Matemática">
+        <div id="optProva">
+          <label for="duracao">Quanto tempo têm para responder? (minutos)</label>
+          <input id="duracao" type="number" min="1" max="180" value="15">
+        </div>
+        <div id="boxPerfil">
+          <label for="perfilCriar">Como dás a nota?</label>
+          <select id="perfilCriar" class="selPerfil"></select>
+        </div>
+        <div id="boxGrupos">
+          <label for="pGrupos">Quantos grupos?</label>
+          <select id="pGrupos">
+            <option>2</option><option>3</option><option>4</option><option>5</option><option selected>6</option><option>7</option><option>8</option>
+          </select>
+        </div>
+        <details class="mais" id="maisOpcoes">
+          <summary>Mais opções</summary>
+          <div id="optElim">
+            <label for="vidas">Quantas vezes pode cada aluno errar antes de sair?</label>
             <select id="vidas">
               <option value="1">1 (erra uma vez, sai)</option>
               <option value="2">2</option>
               <option value="3">3</option>
               <option value="5">5</option>
             </select>
+            <label class="check"><input type="checkbox" id="continuar"> Quem sai continua a responder, para treinar (não conta para o vencedor)</label>
           </div>
-          <div>
-            <label>Eliminados</label>
-            <div class="choice"><label><input type="checkbox" id="continuar"> Continuam a responder, sem contar para o vencedor</label></div>
-          </div>
-        </div>
-        <label>Vez</label>
-        <div class="choice"><label><input type="checkbox" id="comVez"> Os alunos entram <b>fechados</b> e só respondem quando lhes deres a vez</label></div>
-        <div id="optProva" class="hidden">
-          <label for="duracao">Duração da prova (minutos)</label>
-          <input id="duracao" type="number" min="1" max="180" value="15">
-        </div>
-        <div id="boxPerfil">
-        <label for="perfilCriar">Critérios de avaliação</label>
-        <select id="perfilCriar" class="selPerfil"></select>
-        <p class="muted small" style="margin-top:6px">Podes mudar no fim, no quadro Avaliação. É lá que crias os teus próprios perfis.</p>
-        </div>
-      </div>
-
-      <div class="card hidden" id="cardPercurso">
-        <h2>Mapa e estações</h2>
-        <div class="row">
-          <select id="pExemplo" style="width:auto">
-            <option value="">Escolhe um mapa…</option>
-            <option value="motherboard">Exemplo: Motherboard</option>
-            <option value="descobrimentos">Exemplo: Descobrimentos</option>
-            <option value="imagem">A minha imagem (foto, mapa, esquema)…</option>
-          </select>
-          <input id="pFicheiro" type="file" accept="image/png,image/jpeg,image/webp" class="hidden" style="width:auto">
-          <label style="margin:0;font-weight:500">Grupos
-            <select id="pGrupos" style="width:auto;margin-left:6px">
-              <option>2</option><option>3</option><option>4</option><option>5</option><option selected>6</option><option>7</option><option>8</option>
-            </select>
-          </label>
-        </div>
-        <p class="muted small" style="margin-top:10px" id="pAjuda">Clica no mapa para juntar uma estação. Clica numa estação para lhe mudar o nome ou a apagar.</p>
-        <div id="pMapa" class="mapa-edit"></div>
-        <p class="small" id="pEstacoes" style="margin-top:8px"></p>
-
-        <h2 style="margin-top:18px">Missões</h2>
-        <p class="muted small">Uma missão por linha: <b>Título: Estação &gt; Estação &gt; Estação</b>. A primeira estação é o ponto de partida. Cada grupo começa numa missão diferente, para não irem todos ao mesmo sítio.</p>
-        <textarea id="pMissoes" style="min-height:120px" placeholder="Vasco da Gama, 1497: Lisboa > Cabo Verde > Cabo da Boa Esperança > Calecute"></textarea>
-        <div id="pErros"></div>
-      </div>
-
-      <div class="card" id="cardPerguntas">
-        <h2>Perguntas</h2>
-        <p class="muted small">Uma pergunta por linha: <b>pergunta ; resposta ; segundos ; opções</b>. Os segundos e as opções são opcionais (por defeito, 60 s). Opções separadas por <b>|</b>. Várias respostas certas também com <b>|</b>, por exemplo <b>0,5|1/2</b>. Podes colar diretamente do Excel ou do Google Sheets.</p>
-        <div class="row" style="margin-bottom:10px">
-          <select id="exemplo" style="width:auto"><option value="">Carregar um exemplo…</option></select>
-          <label class="sec" style="margin:0"><input id="ficheiro" type="file" accept=".csv,.txt,.tsv" style="width:auto"></label>
-        </div>
-        <textarea id="perguntas" placeholder="Quanto é 7 × 8?;56;30&#10;Capital de França?;Paris;20;Madrid|Paris|Roma|Berlim"></textarea>
-        <p id="resumo" class="muted small" style="margin-top:8px"></p>
-        <div id="previa"></div>
+          <label class="check"><input type="checkbox" id="comVez"> Os alunos só respondem quando eu lhes der a vez</label>
+        </details>
       </div>
 
       <div id="criarErr" class="msg bad hidden"></div>
-      <button class="big">Abrir sala</button>
+      <div class="row navpassos">
+        <button type="button" class="sec big" id="bVoltar">← Voltar</button>
+        <span class="grow"></span>
+        <button type="button" class="big" id="bSeguinte">Seguinte →</button>
+        <button type="submit" class="big hidden" id="bAbrir">Abrir a sala</button>
+      </div>
     </form>
   </section>
 
@@ -175,11 +218,12 @@
     <div class="card">
       <div class="row" style="margin-bottom:10px">
         <h2 class="grow" style="margin:0">Alunos</h2>
+        <button class="sec" type="button" id="vezModo">Dar a vez…</button>
         <button class="sec" type="button" id="vezAbrirTodos">Abrir todos</button>
         <button class="sec" type="button" id="vezFecharTodos">Fechar todos</button>
         <a id="sCsv" href="#"><button class="sec" type="button">Descarregar resultados (CSV)</button></a>
       </div>
-      <p class="muted small" id="vezAjuda">Clica em <b>Aberto/Fechado</b> para dar ou tirar a vez. <b>Só este</b> fecha todos os outros. Clica no nome para lhe chamar, por exemplo, "Grupo 5 – Entradas".</p>
+      <p class="muted small" id="vezAjuda"><b>Aberto</b>: pode responder. <b>Fechado</b>: espera pela vez. <b>Só este</b>: só esse responde. Clica num nome para o mudar.</p>
       <div class="students" id="sAlunos"></div>
       <p class="muted small hidden" id="sSemAlunos">Ainda ninguém entrou.</p>
     </div>
@@ -189,7 +233,9 @@
         <h2 class="grow" style="margin:0">Avaliação</h2>
         <a id="sCsv2" href="#"><button class="sec" type="button">Descarregar com notas (CSV)</button></a>
       </div>
-      <p class="muted small">A app corrige sozinha. Clica numa resposta para a marcar como certa ou errada, muda as cotações ou escreve uma nota à mão. Tudo entra no CSV.</p>
+      <p class="muted small">A app já corrigiu. Se quiseres mudar alguma coisa: clica numa resposta para a marcar como certa ou errada, ou escreve outra nota por cima.</p>
+      <details class="mais" id="aAjustes">
+      <summary>Critérios: <span id="aCritNome"></span> · <u>ajustar</u></summary>
       <div class="row" style="align-items:flex-end">
         <div class="grow">
           <label for="aPerfil">Critérios</label>
@@ -219,6 +265,7 @@
       <label>Menções (a partir de que percentagem)</label>
       <div id="aMencoes" class="mencoes"></div>
       <button type="button" class="sec" id="aMaisMencao" style="margin-top:6px">+ menção</button>
+      </details>
       <div id="aAviso"></div>
       <div id="aResumo" class="row" style="margin:14px 0"></div>
       <div style="overflow-x:auto"><table id="aTabela" class="aval"></table></div>
@@ -272,11 +319,13 @@ function irCriar() {
   if (fonte) { fonte.close(); fonte = null; }
   history.replaceState(null, '', '#');
   mostrar('vCriar');
+  $('#passo0').classList.remove('hidden');
+  $('#fCriar').classList.add('hidden');
   api('GET', '/api/prof/info').then((i) => {
     info = i;
     $('#salasExistentes').classList.toggle('hidden', !i.salas.length);
     $('#listaSalas').innerHTML = '<table><tr><th>Código</th><th>Nome</th><th>Modo</th><th>Estado</th><th>Alunos</th><th></th></tr>' +
-      i.salas.map((s) => `<tr><td><b>${s.code}</b></td><td>${esc(s.titulo)}</td><td>${s.modo === 'elim' ? 'Eliminatória' : 'Prova'}</td><td>${nomeEstado(s.estado, s.modo)}</td><td>${s.alunos}</td><td><button class="sec" data-code="${s.code}">Abrir</button></td></tr>`).join('') + '</table>';
+      i.salas.map((s) => `<tr><td><b>${s.code}</b></td><td>${esc(s.titulo)}</td><td>${NOMES_MODO[s.modo] || s.modo}</td><td>${nomeEstado(s.estado, s.modo)}</td><td>${s.alunos}</td><td><button class="sec" data-code="${s.code}">Abrir</button></td></tr>`).join('') + '</table>';
     $('#listaSalas').querySelectorAll('button').forEach((b) => (b.onclick = () => abrirPainel(b.dataset.code)));
   }).catch(() => {});
 }
@@ -315,21 +364,66 @@ function atualizarPrevia() {
   const { perguntas, erros } = lerPerguntas($('#perguntas').value);
   const modo = document.querySelector('input[name=modo]:checked').value;
   const total = perguntas.reduce((s, p) => s + p.t, 0);
-  $('#resumo').textContent = perguntas.length
-    ? `${perguntas.length} perguntas` + (modo === 'elim' ? ` · até ${Math.ceil(total / 60)} min de jogo` : '')
+  $('#resumo').innerHTML = perguntas.length
+    ? `<b>${perguntas.length} ${perguntas.length === 1 ? 'pergunta pronta' : 'perguntas prontas'}</b>` + (modo === 'elim' ? ` · o jogo dura no máximo ${Math.ceil(total / 60)} min` : '')
     : '';
-  $('#previa').innerHTML = erros.map((e) => `<div class="msg warn small">${esc(e)}</div>`).join('');
+  const mostra = perguntas.slice(0, 5);
+  $('#previa').innerHTML = erros.map((e) => `<div class="msg warn small">${esc(e)}</div>`).join('') + (mostra.length ? `
+    <p class="muted small" style="margin:10px 0 4px">A app percebeu assim${perguntas.length > 5 ? ' (primeiras 5)' : ''}:</p>
+    <div style="overflow-x:auto"><table class="previa"><tr><th>Pergunta</th><th>Resposta certa</th><th>Tempo</th><th>Opções</th></tr>` +
+    mostra.map((p) => `<tr><td>${esc(p.q)}</td><td><b>${esc(p.a.split('|').join(' ou '))}</b></td><td>${p.t} s</td><td>${p.o ? esc(p.o.join(', ')) : '<span class="muted">escreve a resposta</span>'}</td></tr>`).join('') + '</table></div>' : '');
 }
 $('#perguntas').oninput = atualizarPrevia;
-document.querySelectorAll('input[name=modo]').forEach((r) => (r.onchange = () => {
-  const m = document.querySelector('input[name=modo]:checked').value;
+// ---------- assistente passo a passo ----------
+const NOMES_MODO = { elim: 'Jogo de perguntas', prova: 'Teste com tempo', percurso: 'Percurso na sala' };
+const PASSOS = { elim: ['perguntas', 'final'], prova: ['perguntas', 'final'], percurso: ['mapa', 'missoes', 'final'] };
+const NOMES_PASSO = { perguntas: 'Perguntas', mapa: 'Mapa', missoes: 'Missões', final: 'Nome e tempo' };
+let modoAtual = 'elim', passoAtual = 0;
+function escolherModo(m) {
+  modoAtual = m; passoAtual = 0;
+  document.querySelector(`input[name=modo][value=${m}]`).checked = true;
+  $('#passo0').classList.add('hidden');
+  $('#fCriar').classList.remove('hidden');
+  $('#tituloModo').textContent = NOMES_MODO[m];
   $('#optElim').classList.toggle('hidden', m !== 'elim');
   $('#optProva').classList.toggle('hidden', m !== 'prova');
-  $('#cardPercurso').classList.toggle('hidden', m !== 'percurso');
-  $('#cardPerguntas').classList.toggle('hidden', m === 'percurso');
   $('#boxPerfil').classList.toggle('hidden', m === 'percurso');
-  atualizarPrevia();
-}));
+  $('#boxGrupos').classList.toggle('hidden', m !== 'percurso');
+  NOMES_PASSO.final = m === 'prova' ? 'Nome e tempo' : 'Nome';
+  mostrarPasso();
+}
+function mostrarPasso() {
+  const l = PASSOS[modoAtual], atual = l[passoAtual];
+  document.querySelectorAll('.passo').forEach((el) => el.classList.toggle('hidden', el.dataset.passo !== atual));
+  $('#passosNav').innerHTML = l.map((p, i) => `<li class="${i === passoAtual ? 'atual' : i < passoAtual ? 'feito' : ''}">${i + 1}. ${NOMES_PASSO[p]}</li>`).join('');
+  $('#bVoltar').classList.toggle('invisivel', passoAtual === 0);
+  const ultimo = passoAtual === l.length - 1;
+  $('#bSeguinte').classList.toggle('hidden', ultimo);
+  $('#bAbrir').classList.toggle('hidden', !ultimo);
+  $('#criarErr').classList.add('hidden');
+  if (atual === 'perguntas') atualizarPrevia();
+  if (atual === 'missoes') validarMissoes();
+  if (atual === 'final' && !$('#titulo').value) $('#titulo').focus();
+  window.scrollTo(0, 0);
+}
+function erroPasso() {
+  const p = PASSOS[modoAtual][passoAtual];
+  if (p === 'perguntas' && !lerPerguntas($('#perguntas').value).perguntas.length) return 'Escreve pelo menos uma pergunta, com a resposta depois do ponto e vírgula.';
+  if (p === 'mapa' && !pEd.mapa) return 'Escolhe um mapa.';
+  if (p === 'mapa' && pEd.estacoes.length < 2) return 'Clica no mapa para marcar pelo menos 2 estações.';
+  if (p === 'missoes' && !lerMissoes().missoes.length) return 'Escreve pelo menos uma missão com estações que existam no mapa.';
+  return '';
+}
+function seguinte() {
+  const e = erroPasso();
+  if (e) { $('#criarErr').textContent = e; $('#criarErr').classList.remove('hidden'); return; }
+  passoAtual++; mostrarPasso();
+}
+$('#bSeguinte').onclick = seguinte;
+$('#fCriar').addEventListener('input', () => $('#criarErr').classList.add('hidden'));
+$('#bVoltar').onclick = () => { if (passoAtual > 0) { passoAtual--; mostrarPasso(); } };
+$('#bInicio').onclick = () => irCriar();
+document.querySelectorAll('[data-modo]').forEach((b) => (b.onclick = () => escolherModo(b.dataset.modo)));
 $('#exemplo').onchange = async (e) => {
   if (!e.target.value) return;
   const t = await (await fetch('/exemplos/' + encodeURIComponent(e.target.value))).text();
@@ -348,6 +442,8 @@ $('#ficheiro').onchange = async (e) => {
 };
 $('#fCriar').onsubmit = async (e) => {
   e.preventDefault();
+  if (passoAtual < PASSOS[modoAtual].length - 1) return seguinte();
+  if (!$('#titulo').value.trim()) $('#titulo').value = `${NOMES_MODO[modoAtual]} ${new Date().toLocaleDateString('pt-PT')}`;
   if (document.querySelector('input[name=modo]:checked').value === 'percurso') return criarPercurso();
   const { perguntas, erros } = lerPerguntas($('#perguntas').value);
   const err = $('#criarErr');
@@ -428,16 +524,16 @@ function validarMissoes() {
     (missoes.length ? `<p class="muted small">${missoes.length} ${missoes.length === 1 ? 'missão válida' : 'missões válidas'}.</p>` : '');
 }
 $('#pMissoes').oninput = validarMissoes;
-$('#pExemplo').onchange = (e) => {
-  const v = e.target.value;
-  $('#pFicheiro').classList.toggle('hidden', v !== 'imagem');
+document.querySelectorAll('[data-mapa]').forEach((b) => (b.onclick = () => escolherMapa(b.dataset.mapa)));
+function escolherMapa(v) {
+  document.querySelectorAll('[data-mapa]').forEach((b) => b.classList.toggle('sel', b.dataset.mapa === v));
   if (v === 'imagem') { $('#pFicheiro').click(); return; }
   const ex = PERCURSOS[v]; if (!ex) return;
   pEd.src = ex.url; pEd.mapa = { url: ex.url }; pEd.estacoes = ex.estacoes.map((x) => ({ ...x }));
   $('#pMissoes').value = ex.missoes;
   if (!$('#titulo').value) $('#titulo').value = ex.titulo;
   desenharEditor();
-};
+}
 $('#pFicheiro').onchange = async (e) => {
   const f = e.target.files[0]; if (!f) return;
   const img = new Image();
@@ -516,6 +612,13 @@ function abrirPainel(code) {
   fonte.onerror = () => { $('#sEstadoTxt').textContent = 'Ligação perdida. A tentar de novo…'; };
 }
 $('#voltar').onclick = irCriar;
+// Os botões de dar a vez só aparecem quando são precisos
+const vezPedida = {};
+function vezVisivel(s) {
+  if (vezPedida[s.code] !== undefined) return vezPedida[s.code];
+  return s.comVez || s.alunos.some((a) => !a.aberto);
+}
+$('#vezModo').onclick = () => { vezPedida[estado.code] = !vezVisivel(estado); desenhar(); };
 $('#pProjetar').onclick = () => window.open(`/projetar?s=${estado.code}&t=${encodeURIComponent(estado.tokenProj)}`, 'projecao');
 $('#pCartoes').onclick = () => window.open(`/cartoes?s=${estado.code}&pin=${encodeURIComponent(PIN)}`, 'cartoes');
 $('#vezAbrirTodos').onclick = () => acao('vezTodos', { aberto: true });
@@ -532,7 +635,7 @@ function desenhar() {
   const s = estado; if (!s) return;
   $('#sTitulo').textContent = s.titulo;
   $('#sCode').textContent = s.code;
-  $('#sModo').textContent = s.modo === 'percurso' ? `Percurso · ${s.percurso.nGrupos} grupos` : s.modo === 'elim' ? `Eliminatória · ${s.vidas} ${s.vidas > 1 ? 'vidas' : 'vida'}` : `Prova · ${s.duracaoMin} min`;
+  $('#sModo').textContent = s.modo === 'percurso' ? `Percurso · ${s.percurso.nGrupos} grupos` : s.modo === 'elim' ? `Jogo de perguntas${s.vidas > 1 ? ` · ${s.vidas} vidas` : ''}` : `Teste com tempo · ${s.duracaoMin} min`;
   $('#sEstadoTxt').textContent = nomeEstado(s.estado, s.modo);
 
   const emJogo = s.alunos.filter((a) => !a.eliminado).length;
@@ -627,7 +730,9 @@ function desenhar() {
   // alunos
   const box = $('#sAlunos');
   const porEntrada = [...s.alunos].sort((x, y) => x.entrou - y.entrou); // os cartões não mudam de lugar
-  const comVezVisivel = s.estado !== 'fim';
+  const comVezVisivel = s.estado !== 'fim' && vezVisivel(s);
+  $('#vezModo').classList.toggle('hidden', s.estado === 'fim' || !s.alunos.length);
+  $('#vezModo').textContent = comVezVisivel ? 'Esconder a vez' : 'Dar a vez…';
   box.innerHTML = porEntrada.map((a) => {
     let cls = 'st', info = '';
     if (!a.aberto && comVezVisivel) cls += ' fechado';
@@ -727,6 +832,7 @@ function desenharAvaliacao() {
   for (const m of av.mencoes) resumo += `<span class="pill">${esc(m.nome)}: ${s.alunos.filter((a) => a.avaliacao.mencao === m.nome).length}</span>`;
   $('#aResumo').innerHTML = resumo;
   preencherPerfis($('#aPerfil'), av.perfil);
+  $('#aCritNome').textContent = av.perfil || (cinco ? 'níveis 1 a 5 (personalizado)' : '0 a 20 valores (personalizado)');
   $('#aApagarPerfil').disabled = !lerPerfis().some((p) => p.nome === av.perfil);
   $('#aMencoes').innerHTML = av.mencoes.map((m, i) => `<div class="row mrow">
       <span>${i === 0 ? 'desde 0%' : `≥ <input type="text" inputmode="decimal" data-mmin="${i}" value="${fmt(m.min)}">%`}</span>
@@ -790,8 +896,8 @@ $('#aMaisMencao').onclick = () => {
 // ---------- perfis de critérios (guardados neste browser) ----------
 const MENCOES_PADRAO = [{ min: 0, nome: 'Insuficiente' }, { min: 50, nome: 'Suficiente' }, { min: 70, nome: 'Bom' }, { min: 90, nome: 'Muito Bom' }];
 const PERFIS_BASE = [
-  { nome: 'Básico: níveis 1 a 5', escala: '5', limites: [20, 50, 70, 90], mencoes: MENCOES_PADRAO, base: true },
-  { nome: 'Secundário: 0 a 20 valores', escala: '20', limites: [20, 50, 70, 90], mencoes: MENCOES_PADRAO, base: true },
+  { nome: '5.º ao 9.º ano: níveis 1 a 5', escala: '5', limites: [20, 50, 70, 90], mencoes: MENCOES_PADRAO, base: true },
+  { nome: '10.º ao 12.º ano: 0 a 20 valores', escala: '20', limites: [20, 50, 70, 90], mencoes: MENCOES_PADRAO, base: true },
 ];
 function lerPerfis() { try { return JSON.parse(localStorage.getItem('perfis') || '[]'); } catch { return []; } }
 function gravarPerfis(l) { try { localStorage.setItem('perfis', JSON.stringify(l)); return true; } catch { return false; } }

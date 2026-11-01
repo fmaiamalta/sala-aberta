@@ -2,9 +2,9 @@
 
 App para a aula com dois modos:
 
-- **Eliminatória:** uma pergunta de cada vez, com tempo. Quem erra sai. Ganha o último.
-- **Prova cronometrada:** todas as perguntas ao mesmo tempo. Fecha quando o tempo acabar.
-- **Percurso:** em cada grupo, um aluno guia (com o aparelho) e outro caminha até às estações. Serve para a motherboard, para os caminhos marítimos ou para qualquer mapa ou esquema.
+- **Jogo de perguntas:** uma pergunta de cada vez, com tempo. Quem erra sai. Ganha o último.
+- **Teste com tempo:** todas as perguntas ao mesmo tempo. Fecha quando o tempo acabar e dá nota.
+- **Percurso na sala:** em cada grupo, um aluno guia (com o aparelho) e outro caminha até às estações. Serve para a motherboard, para os caminhos marítimos ou para qualquer mapa ou esquema.
 
 Funciona no teu computador. Os alunos entram pelo browser, no telemóvel ou nos computadores da sala. Não precisam de instalar nada.
 
@@ -21,7 +21,7 @@ Funciona no teu computador. Os alunos entram pelo browser, no telemóvel ou nos 
    - Mac: duplo clique em `iniciar-mac.command` (da primeira vez: botão direito, Abrir)
 3. A janela mostra o **PIN do professor** e o endereço para os alunos, por exemplo `http://192.168.1.23:3000`.
 4. No teu browser abre `http://localhost:3000/professor` e escreve o PIN.
-5. Cria a sala e projeta o ecrã. Os alunos leem o QR ou escrevem o endereço e o código de 4 algarismos.
+5. Escolhe o que queres fazer (Jogo de perguntas, Teste com tempo ou Percurso na sala) e segue os passos. As opções menos usadas estão em "Mais opções". Os alunos leem o QR ou escrevem o endereço e o código de 4 algarismos.
 
 Se o Windows perguntar se permite o acesso à rede, escolhe **Permitir** (redes privadas). Sem isto, os alunos não conseguem entrar.
 
